@@ -4,7 +4,7 @@
   import GameDetail from '../components/GameDetail.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { viewport } from '../lib/viewport.svelte';
-  import { games, getGame } from '../games';
+  import { games, getGame, getSessionGame } from '../games';
   import { sessionWinners } from '../lib/session';
   import type { GameModule, Session } from '../lib/types';
 
@@ -27,12 +27,12 @@
   }
 
   function progress(s: Session) {
-    const total = getGame(s.gameId)?.rounds?.length;
+    const total = getSessionGame(s)?.rounds?.length;
     return `Round ${Math.min(s.scores.length + 1, total ?? Infinity)}${total ? ` of ${total}` : ''}`;
   }
 
   function outcome(s: Session) {
-    const game = getGame(s.gameId);
+    const game = getSessionGame(s);
     if (!game) return '';
     const w = sessionWinners(game, s).map((i) => s.players[i].name);
     return w.length === 1 ? `${w[0]} won` : `${w.join(' & ')} tied`;

@@ -243,4 +243,34 @@ describe('LobbyStore', () => {
       expect(errorOf(() => store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'play', tricks: 1, captures: { fourteen: 9 } })).status).toBe(400);
     });
   });
+
+  describe('mark-only specials and negative scores (Kombio)', () => {
+    function kombioRound(allowNegative: boolean) {
+      const ctx = setup();
+      const a = ctx.store.join(ctx.code, 'Ana', '🦊');
+      ctx.store.start(ctx.code, ctx.hostKey);
+      ctx.store.publish(ctx.code, ctx.hostKey, {
+        round: {
+          gameId: 'k', round: 0, title: 'Round 1', note: null, dealer: null, prompt: 'x', keypad: [], allowNegative,
+          special: { label: 'I called KOMBIO', score: null, exclusive: true, takenBy: null },
+          players: [{ lobbyId: a.player.id, name: 'Ana', seat: 0, state: 'open' }],
+        },
+      });
+      return { ...ctx, a };
+    }
+
+    it('keeps the typed total when the special only marks the caller', () => {
+      const { store, code, hostKey, a } = kombioRound(true);
+      store.submit(code, a.player.id, a.token, { gameId: 'k', round: 0, value: 7, special: true });
+      expect(store.hostView(code, hostKey).submissions?.[a.player.id]).toMatchObject({ value: 7, special: true });
+    });
+
+    it('allows negative totals only where the game allows them', () => {
+      const k = kombioRound(true);
+      k.store.submit(k.code, k.a.player.id, k.a.token, { gameId: 'k', round: 0, value: -15 });
+      expect(k.store.hostView(k.code, k.hostKey).submissions?.[k.a.player.id]?.value).toBe(-15);
+      const f = kombioRound(false);
+      expect(errorOf(() => f.store.submit(f.code, f.a.player.id, f.a.token, { gameId: 'k', round: 0, value: -15 })).status).toBe(400);
+    });
+  });
 });

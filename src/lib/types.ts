@@ -11,7 +11,8 @@ export type TurnModel =
   | { type: 'strict-order' };
 
 export type WinnerRule =
-  | { rule: 'lowest-total' }
+  /** Lowest total wins. With `endAt`, the game ends after a round leaves anyone at or over it. */
+  | { rule: 'lowest-total'; endAt?: number }
   | { rule: 'highest-total' }
   /**
    * Play until someone reaches `target`; highest total wins. With `finalTurns`, once
@@ -27,19 +28,29 @@ export interface RoundMeta {
   note?: string;
 }
 
-export interface OptionDef {
-  id: string;
-  label: string;
-  type: 'boolean';
-  default: boolean;
-}
+/** A setup option's value: an on/off switch, or the id of a choice. */
+export type OptionValue = boolean | string;
+export type Options = Record<string, OptionValue>;
+
+export type OptionDef =
+  | { id: string; label: string; type: 'boolean'; default: boolean }
+  /** Pick one of several, e.g. how the game ends. */
+  | { id: string; label: string; type: 'choice'; default: string; choices: { value: string; label: string }[] };
 
 /** Game-specific rules for the 'round-grid' scoring surface. */
 export interface RoundGridRules {
   /** What each player enters per round, e.g. "Hand total". */
   entryLabel: string;
   /** A per-round "went out" button. At most one player per round; it sets their score. */
-  out?: { label: string; score: number };
+  /**
+   * One player per round can be marked (Five Crowns "Out", Kombio's caller). With
+   * `score`, marking them also sets their score; without, it only marks who it was.
+   */
+  out?: { label: string; score?: number };
+  /** Adjust a finished round's scores, e.g. Kombio's caller penalty. `out` is the marked player. */
+  adjust?: (entries: number[], out: number | null) => number[];
+  /** Scores can go below zero (special hands). */
+  allowNegative?: boolean;
   /** Most digits a score can have (default 5). Money games use more. */
   entryDigits?: number;
   /** A per-player button that fills in a fixed score. Any number of players can use it in a round (Farkle: 0). */
@@ -102,6 +113,8 @@ export interface GameModule {
   turns: TurnModel;
   options: OptionDef[];
   winner: WinnerRule;
+  /** Rounds and winning rule that depend on setup options (e.g. "after 5 rounds"). */
+  configure?: (options: Options) => Partial<Pick<GameModule, 'rounds' | 'winner'>>;
   /** Short reference text. `option` names a boolean option that shows or hides it. */
   cheatSheet?: { text: string; option?: string };
   about?: GameAbout;
@@ -128,7 +141,7 @@ export interface Session {
   scores: number[][];
   /** Round-major: which player went out each round (null if nobody was marked). */
   outs: (number | null)[];
-  options: Record<string, boolean>;
+  options: Options;
   /** The round being entered but not finished yet, so a refresh keeps it. */
   draft?: RoundDraft;
   startedAt: number;

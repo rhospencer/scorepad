@@ -67,7 +67,10 @@ export interface LiveRound {
   /** Tap-to-add buttons: card values or point shortcuts. */
   keypad: { label: string; value: number }[];
   /** The game's one-tap score ("I went out", "I farkled"). exclusive = only one player per round. */
-  special: { label: string; score: number; exclusive: boolean; takenBy: string | null } | null;
+  /** score null: the button only marks the player (Kombio's caller); they still send a total. */
+  special: { label: string; score: number | null; exclusive: boolean; takenBy: string | null } | null;
+  /** Scores can be negative (special hands). */
+  allowNegative?: boolean;
   players: LiveRoundPlayer[];
   /** Bid-and-tricks games (Skull King). Absent for other games. */
   trick?: LiveTrickRound | null;

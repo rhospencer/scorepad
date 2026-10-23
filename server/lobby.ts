@@ -39,6 +39,8 @@ interface Lobby extends Omit<LobbyView, 'submitted' | 'submissions'> {
 
 /** Highest score a phone may send for one round. */
 const MAX_SCORE = 9_999_999;
+/** Lowest score a phone may send in games that allow negatives. */
+const MAX_NEGATIVE = 999;
 
 /**
  * In-memory game lobbies. The host's screen creates one; phones join it with
@@ -173,8 +175,11 @@ export class LobbyStore {
     if (special && live.special?.exclusive && live.special.takenBy) {
       throw new LobbyError(409, `${live.special.takenBy} already went out this round.`);
     }
-    const value = special ? live.special!.score : Number(body.value);
-    if (!Number.isInteger(value) || value < 0 || value > MAX_SCORE) throw new LobbyError(400, 'Enter a whole number.');
+    // A special with its own score (Out, Farkle) sets it; a plain mark (Kombio caller) keeps the typed total.
+    const fixed = special ? live.special!.score : null;
+    const value = fixed ?? Number(body.value);
+    const min = live.allowNegative ? -MAX_NEGATIVE : 0;
+    if (!Number.isInteger(value) || value < min || value > MAX_SCORE) throw new LobbyError(400, 'Enter a whole number.');
     lobby.submissions.set(id, { gameId: live.gameId, round: live.round, value, special });
     this.changed(lobby);
   }
@@ -318,6 +323,7 @@ function cleanRound(raw: unknown): LiveRound {
     dealer: optText(r.dealer),
     prompt: text(r.prompt),
     maxDigits: Math.max(1, Math.min(7, Math.floor(Number(r.maxDigits) || 5))),
+    allowNegative: r.allowNegative === true,
     keypad: (Array.isArray(r.keypad) ? r.keypad.slice(0, 20) : []).map((k: Record<string, unknown>) => ({
       label: text(k.label, 8),
       value: Math.max(0, Math.min(MAX_SCORE, Math.floor(Number(k.value) || 0))),
@@ -326,7 +332,7 @@ function cleanRound(raw: unknown): LiveRound {
       sp && typeof sp === 'object'
         ? {
             label: text(sp.label, 24),
-            score: Math.max(0, Math.min(MAX_SCORE, Math.floor(Number(sp.score) || 0))),
+            score: sp.score === null || sp.score === undefined ? null : Math.max(0, Math.min(MAX_SCORE, Math.floor(Number(sp.score) || 0))),
             exclusive: sp.exclusive === true,
             takenBy: optText(sp.takenBy),
           }

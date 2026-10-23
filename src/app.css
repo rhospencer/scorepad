@@ -4,9 +4,34 @@
   box-sizing: border-box;
 }
 
+/* The theme background always covers the whole page: at least the window's height,
+   and all the way down on long pages (many players). Painted on <html> too, so
+   scroll-bounce and any space past the content match. */
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+/* The page background, as one fixed layer covering the whole window.
+   It carries a pattern too faint to see (1–2 shades out of 255) on purpose: Chrome
+   draws areas of one flat color through a shortcut whose color conversion differs
+   slightly on some Mac displays, which showed as a visible line below the content
+   in some themes. With the pattern, every part of the background is drawn the same way. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg);
+  background-image: repeating-linear-gradient(45deg, rgb(128 128 128 / 0.012) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+
 body {
   margin: 0;
-  background: var(--bg);
+  min-height: 100vh;
+  /* Transparent so the layer above shows everywhere; <html> keeps the color for scroll-bounce. */
+  background: transparent;
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-text-size-adjust: 100%;

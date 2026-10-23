@@ -31,6 +31,10 @@ export function dealerFor(round: number, playerCount: number): number {
  */
 export function isFinished(game: GameModule, scores: number[][]): boolean {
   if (game.rounds) return scores.length >= game.rounds.length;
+  if (game.winner.rule === 'lowest-total' && game.winner.endAt !== undefined) {
+    const endAt = game.winner.endAt;
+    return totals(scores, scores[0]?.length ?? 0).some((t) => t >= endAt);
+  }
   const hit = targetReached(game, scores);
   if (!hit) return false;
   // Without final turns the game ends with the round that got someone there.

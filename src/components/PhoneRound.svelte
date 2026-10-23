@@ -43,8 +43,11 @@
 
   const mine = $derived(round.players.find((p) => p.lobbyId === me.id));
   const myState = $derived(mine?.state ?? 'open');
-  const value = $derived(special ? (round.special?.score ?? 0) : taps.length > 0 ? taps.reduce((a, t) => a + t.value, 0) : Number(typed || 0));
-  const hasValue = $derived(special || taps.length > 0 || typed !== '');
+  /** The button only marks the player (Kombio caller); their typed total still counts. */
+  const markOnly = $derived(round.special?.score === null);
+  const counted = $derived(taps.length > 0 ? taps.reduce((a, t) => a + t.value, 0) : Number(typed === '-' ? 0 : typed || 0));
+  const value = $derived(special && !markOnly ? (round.special?.score ?? 0) : counted);
+  const hasValue = $derived((special && !markOnly) || taps.length > 0 || (typed !== '' && typed !== '-'));
   const specialTaken = $derived(!!round.special?.exclusive && !!round.special.takenBy);
   const lastRound = $derived(scoreboard?.rows.find((r) => r.lobbyId === me.id)?.last ?? null);
   const myStanding = $derived(scoreboard?.rows.find((r) => r.lobbyId === me.id));
@@ -59,11 +62,13 @@
   const inCount = $derived(others.filter((p) => p.state === 'approved').length);
 
   function onType(el: HTMLInputElement) {
+    const negative = !!round.allowNegative && el.value.trim().startsWith('-');
     const digits = el.value.replace(/\D/g, '').slice(0, round.maxDigits ?? 5);
-    if (digits !== el.value) el.value = digits;
-    typed = digits;
+    const shownValue = (negative ? '-' : '') + digits;
+    if (shownValue !== el.value) el.value = shownValue;
+    typed = shownValue;
     taps = [];
-    special = false;
+    if (!markOnly) special = false;
   }
 
   function tap(k: { label: string; value: number }) {
@@ -85,7 +90,7 @@
 
   function toggleSpecial() {
     special = !special;
-    if (special) {
+    if (special && !markOnly) {
       taps = [];
       typed = '';
     }
@@ -117,6 +122,7 @@
   }
 
   function shown(v: { value: number; special: boolean }) {
+    if (v.special && markOnly) return `${num.format(v.value)} · ${round.special?.label ?? ''}`;
     return v.special ? (round.special?.label ?? '0') : num.format(v.value);
   }
 </script>
@@ -158,14 +164,13 @@
       <input
         id="my-score"
         class="big"
-        class:muted-input={special}
+        class:muted-input={special && !markOnly}
         type="text"
-        inputmode="numeric"
-        pattern="[0-9]*"
+        inputmode={round.allowNegative ? 'text' : 'numeric'}
         autocomplete="off"
         placeholder="0"
-        disabled={special}
-        value={special ? '0' : taps.length > 0 ? String(value) : typed}
+        disabled={special && !markOnly}
+        value={special && !markOnly ? '0' : taps.length > 0 ? String(value) : typed}
         oninput={(e) => onType(e.currentTarget)}
       />
       {#if round.keypad.length > 0}
@@ -179,7 +184,7 @@
       {#if round.keypad.length > 0}
         <div class="keypad" class:cards={round.keypad.length > 6} role="group" aria-label="Add to your score">
           {#each round.keypad as k (k.label)}
-            <button type="button" onclick={() => tap(k)} disabled={special}>{k.label}</button>
+            <button type="button" onclick={() => tap(k)} disabled={special && !markOnly}>{k.label}</button>
           {/each}
         </div>
       {/if}
@@ -197,7 +202,11 @@
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       <div class="send">
         <button type="submit" class="btn btn-primary btn-block" disabled={!hasValue || busy}>
-          {hasValue ? (special ? `Send: ${round.special?.label}` : `Send ${num.format(value)}`) : 'Enter your score'}
+          {hasValue
+            ? special && !markOnly
+              ? `Send: ${round.special?.label}`
+              : `Send ${num.format(value)}${special && markOnly ? ' · KOMBIO' : ''}`
+            : 'Enter your score'}
         </button>
         {#if editing}
           <button type="button" class="btn btn-ghost btn-block" onclick={() => (editing = false)}>Keep what I sent</button>

@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getGame } from './games';
+  import { getGame, getSessionGame } from './games';
   import { deleteSession, finishedSessions, inProgressSessions, saveSession } from './lib/db';
   import { buildLiveRound } from './lib/liveRound';
   import { lobbyApi, watchLobby } from './lib/lobbyClient';
   import type { LobbyView } from './lib/lobbyTypes';
   import { buildScoreboard } from './lib/scoreboard';
   import { createSession, rematch } from './lib/session';
-  import type { GameModule, PlayerInput, Session } from './lib/types';
+  import type { GameModule, Options, PlayerInput, Session } from './lib/types';
   import Library from './screens/Library.svelte';
   import Play from './screens/Play.svelte';
   import PlayerSetup from './screens/PlayerSetup.svelte';
@@ -18,7 +18,8 @@
   let screen = $state<Screen>({ name: 'library' });
   /** The game being played or just finished. */
   let session = $state<Session | null>(null);
-  const game = $derived(session ? getGame(session.gameId) : undefined);
+  // With the session's setup options applied (e.g. Kombio "after 5 rounds").
+  const game = $derived(session ? getSessionGame(session) : undefined);
 
   let loaded = $state(false);
   let saveFailed = $state(false);
@@ -51,7 +52,7 @@
   let lastPublished = '';
   /** Send the live scoreboard to the game's phone lobby, only when the standings changed. */
   function publish(s: Session) {
-    const g = getGame(s.gameId);
+    const g = getSessionGame(s);
     if (!s.lobby || !g) return;
     const live = { scoreboard: buildScoreboard(g, s), round: buildLiveRound(g, s) };
     const key = `${s.lobby.code}:${JSON.stringify(live)}`;
@@ -94,7 +95,7 @@
   function start(
     g: GameModule,
     players: PlayerInput[],
-    options: Record<string, boolean>,
+    options: Options,
     lobby?: { code: string; hostKey: string },
   ) {
     const s = createSession(g, players, options);

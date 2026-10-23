@@ -38,6 +38,9 @@ Each game's `about` (tagline, time, rules, scoring reference) feeds the library'
 
 ## How games work
 
+Setup options can be on/off switches or choices (`type: 'choice'`). A module's `configure(options)` can change its rounds and winning rule per game: Kombio's host picks "when someone hits 100", "after 5 rounds" or "after 10 rounds". Use `getSessionGame(session)` to get a session's game with its options applied.
+
+
 Every game is a `GameModule` (see `src/lib/types.ts`): identity, player range, setup options, a scoring surface, a turn model, and a winner rule. The shell (library, players, saving, history) never changes per game.
 
 Game-specific rules stay in the module. For `round-grid` games, `roundGrid` sets the entry label and an optional "went out" button (Five Crowns: "Out" scores 0), and an optional `quickScore` button any number of players can use per round (Farkle: "Farkle" scores 0). Games with `winner: first-to-target` and no fixed `rounds` end when a round finishes with someone at the target. `turns.option` and `cheatSheet.option` name the setup toggle that turns the dealer or cheat sheet on and off.
@@ -46,7 +49,7 @@ Scoring surfaces (reusable screens a module picks from):
 
 | Surface | For | Status |
 | --- | --- | --- |
-| `round-grid` | Rounds games: Five Crowns, Farkle, Cover Your Assets, Phase 10 | done |
+| `round-grid` | Rounds games: Five Crowns, Farkle, Cover Your Assets, Kombio, Phase 10 | done |
 | `bid-tricks` | Bid-and-tricks games: Skull King (bids first, then tricks won and bonus captures; scores can go negative) | done |
 | `category-sheet` | Turn-based sheets: Yahtzee | planned |
 | `running-tally` | Free-form counters: Catan | planned |

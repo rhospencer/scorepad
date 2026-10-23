@@ -7,7 +7,7 @@
   import type { LobbyNetwork, LobbyView } from '../lib/lobbyTypes';
   import { defaultOptions, MAX_PLAYERS } from '../lib/session';
   import { viewport } from '../lib/viewport.svelte';
-  import type { GameModule } from '../lib/types';
+  import type { GameModule, Options } from '../lib/types';
 
   interface StartingPlayer {
     name: string;
@@ -19,11 +19,11 @@
     game: GameModule;
     /** Players to start with, e.g. from the last game played. */
     initialPlayers?: StartingPlayer[];
-    initialOptions?: Record<string, boolean>;
+    initialOptions?: Options;
     /** `lobby` is set when players joined by phone; the game then publishes live scores to it. */
     onstart: (
       players: StartingPlayer[],
-      options: Record<string, boolean>,
+      options: Options,
       lobby?: { code: string; hostKey: string },
     ) => void;
     onback: () => void;
@@ -50,7 +50,7 @@
     return rows;
   }
 
-  function startingOptions(): Record<string, boolean> {
+  function startingOptions(): Options {
     return { ...defaultOptions(game), ...initialOptions };
   }
 
@@ -322,11 +322,25 @@
     <ul class="options">
       {#each game.options as opt (opt.id)}
         <li>
-          <label class="toggle">
-            <span>{opt.label}</span>
-            <input type="checkbox" role="switch" bind:checked={options[opt.id]} />
-            <span class="track" aria-hidden="true"></span>
-          </label>
+          {#if opt.type === 'choice'}
+            <fieldset class="choice">
+              <legend>{opt.label}</legend>
+              <div class="choices">
+                {#each opt.choices as c (c.value)}
+                  <label class="choice-item" class:on={options[opt.id] === c.value}>
+                    <input type="radio" name="opt-{opt.id}" value={c.value} bind:group={options[opt.id]} />
+                    <span>{c.label}</span>
+                  </label>
+                {/each}
+              </div>
+            </fieldset>
+          {:else}
+            <label class="toggle">
+              <span>{opt.label}</span>
+              <input type="checkbox" role="switch" checked={options[opt.id] === true} onchange={(e) => (options[opt.id] = e.currentTarget.checked)} />
+              <span class="track" aria-hidden="true"></span>
+            </label>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -474,6 +488,49 @@
   .hint.warn {
     color: var(--amber);
     text-align: left;
+  }
+  .choice {
+    margin: 0;
+    padding: 12px 14px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .choice legend {
+    padding: 0 4px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .choice-item {
+    position: relative;
+    min-height: 44px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .choice-item input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+  }
+  .choice-item.on {
+    border-color: var(--amber);
+    background: var(--amber);
+    color: var(--on-amber);
+  }
+  .choice-item:has(input:focus-visible) {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
   }
   .toggle {
     min-height: 60px;

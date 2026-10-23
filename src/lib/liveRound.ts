@@ -28,10 +28,11 @@ export function buildLiveRound(game: GameModule, session: Session): LiveRound | 
 
   let special: LiveRound['special'] = null;
   if (rules?.out) {
-    const outPlayer = draft.out !== null && draft.entries[draft.out] === rules.out.score ? draft.out : null;
+    const scoreless = rules.out.score === undefined;
+    const outPlayer = draft.out !== null && (scoreless || draft.entries[draft.out] === rules.out.score) ? draft.out : null;
     special = {
       label: rules.phone?.specialLabel ?? rules.out.label,
-      score: rules.out.score,
+      score: rules.out.score ?? null,
       exclusive: true,
       takenBy: outPlayer === null ? null : session.players[outPlayer].name,
     };
@@ -47,6 +48,7 @@ export function buildLiveRound(game: GameModule, session: Session): LiveRound | 
     dealer: dealer === null ? null : session.players[dealer].name,
     prompt: rules?.phone?.prompt ?? rules?.entryLabel ?? 'Your score',
     maxDigits: rules?.entryDigits ?? 5,
+    allowNegative: rules?.allowNegative ?? false,
     keypad: rules?.phone?.keypad ?? [],
     special,
     players: session.players.map((p, i) => {
@@ -93,7 +95,8 @@ export function outConflict(game: GameModule, session: Session, draft: RoundDraf
   const out = game.roundGrid?.out;
   if (!out) return [];
   const claims = pending.flatMap((s, i) => (s?.special ? [i] : []));
-  const already = draft.out !== null && draft.entries[draft.out] === out.score ? [draft.out] : [];
+  const already =
+    draft.out !== null && (out.score === undefined || draft.entries[draft.out] === out.score) ? [draft.out] : [];
   const involved = [...already, ...claims];
   return involved.length > 1 ? involved.map((i) => session.players[i].name) : [];
 }

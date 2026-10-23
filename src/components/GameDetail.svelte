@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { configuredGame } from '../lib/session';
   import type { GameModule } from '../lib/types';
 
   /** The desktop library's right pane: what a game is, how to play, and a Start button. */
@@ -12,9 +13,13 @@
   const num = new Intl.NumberFormat();
 
   const facts = $derived.by(() => {
-    const w = game.winner;
+    // Facts for the default setup; games with a length option say it's chosen at setup.
+    const g = configuredGame(game);
+    const w = g.winner;
+    const lengthChoice = game.options.some((o) => o.type === 'choice' && o.id === 'length');
     const list = [{ label: 'Players', value: `${game.players.min}–${game.players.max}+` }];
-    if (game.rounds) list.push({ label: 'Rounds', value: String(game.rounds.length) });
+    if (lengthChoice) list.push({ label: 'Length', value: 'Your choice' });
+    else if (g.rounds) list.push({ label: 'Rounds', value: String(g.rounds.length) });
     if (w.rule === 'first-to-target') list.push({ label: 'Play to', value: num.format(w.target) });
     list.push({ label: 'Winner', value: w.rule === 'lowest-total' ? 'Lowest total' : 'Highest total' });
     if (game.about?.time) list.push({ label: 'Time', value: game.about.time });

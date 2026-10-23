@@ -13,6 +13,7 @@
     draftComplete,
     draftFor,
     recordRound,
+    outKeepsScore,
     sendBack,
     setEntry,
     skippedPlayers,
@@ -55,6 +56,8 @@
   const roundCount = $derived(game.rounds?.length ?? null);
   const allScored = $derived(isFinished(game, session.scores) && editing === null);
   const target = $derived(game.winner.rule === 'first-to-target' ? game.winner.target : null);
+  /** Lowest-wins games that end when someone reaches a score (Kombio "to 100"). */
+  const endAt = $derived(game.winner.rule === 'lowest-total' ? (game.winner.endAt ?? null) : null);
   const meta = $derived(game.rounds?.[round]);
   const dealer = $derived(dealerIndex(game, session, round));
   const cheat = $derived(cheatSheetText(game, session));
@@ -119,10 +122,29 @@
   }
 
   function onInput(i: number, el: HTMLInputElement) {
+    // A leading minus is allowed in games with negative scores (Kombio's special hands).
+    const negative = !!game.roundGrid?.allowNegative && el.value.trim().startsWith('-');
     const digits = el.value.replace(/\D/g, '').slice(0, game.roundGrid?.entryDigits ?? 5);
-    if (digits !== el.value) el.value = digits;
-    update(setEntry(draft, i, digits === '' ? null : Number(digits)));
+    const shown = (negative ? '-' : '') + digits;
+    if (shown !== el.value) el.value = shown;
+    const value = digits === '' ? null : (negative ? -1 : 1) * Number(digits);
+    update(setEntry(draft, i, value, outKeepsScore(game)));
   }
+
+  /** What the round's adjustment will do (e.g. KOMBIO +10s), once every score is in. */
+  const adjustNote = $derived.by(() => {
+    const adjust = game.roundGrid?.adjust;
+    if (!adjust || draft.out === null || editing !== null) return null;
+    if (draft.entries.some((v) => v === null)) return null;
+    const raw = draft.entries as number[];
+    const after = adjust(raw, draft.out);
+    const changed = after.flatMap((v, i) => (v !== raw[i] ? [{ name: session.players[i].name, diff: v - raw[i] }] : []));
+    if (changed.length === 0) return null;
+    const groups = new Map<number, string[]>();
+    for (const c of changed) groups.set(c.diff, [...(groups.get(c.diff) ?? []), c.name]);
+    const caller = session.players[draft.out].name;
+    return `${caller} called ${outRule?.label}: ` + [...groups].map(([d, names]) => `${names.join(', ')} ${d > 0 ? '+' : ''}${d}`).join(' · ');
+  });
 
   /** Enter jumps to the next empty score. */
   function nextOnEnter(e: KeyboardEvent, i: number) {
@@ -158,7 +180,7 @@
 {#snippet entry()}
   {#if allScored}
     <p class="eyebrow">{game.name}</p>
-    <h1 class="title">{roundCount ? `All ${roundCount} rounds scored` : `Someone reached ${num.format(target ?? 0)}`}</h1>
+    <h1 class="title">{roundCount ? `All ${roundCount} rounds scored` : `Someone reached ${num.format(target ?? endAt ?? 0)}`}</h1>
     <p class="muted">Tap a round on the score sheet to fix a score.</p>
     <div class="actions">
       <button type="button" class="btn btn-primary btn-block" onclick={onresults}>See results</button>
@@ -172,7 +194,7 @@
     {/if}
 
     <header class="round-card">
-      <p class="eyebrow">Round {round + 1}{roundCount ? ` of ${roundCount}` : ''}{target ? ` · first to ${num.format(target)}` : ''}</p>
+      <p class="eyebrow">Round {round + 1}{roundCount ? ` of ${roundCount}` : ''}{target ? ` · first to ${num.format(target)}` : ''}{endAt ? ` · ends at ${num.format(endAt)}` : ''}</p>
       <div class="round-main">
         <h1>{isFinal ? 'Final turns' : (meta?.label ?? `Round ${round + 1}`)}</h1>
         {#if meta?.note}<span class="wild">{meta.note}</span>{/if}
@@ -231,13 +253,12 @@
             class="score"
             class:long={(game.roundGrid?.entryDigits ?? 5) > 5}
             type="text"
-            inputmode="numeric"
-            pattern="[0-9]*"
+            inputmode={game.roundGrid?.allowNegative ? 'text' : 'numeric'}
             autocomplete="off"
             enterkeyhint="next"
             placeholder={sub ? pendingText(sub) : '–'}
             aria-describedby={sub || wasSentBack ? `status-${i}` : undefined}
-            readonly={isOut}
+            readonly={isOut && outRule?.score !== undefined}
             value={draft.entries[i] ?? ''}
             oninput={(e) => onInput(i, e.currentTarget)}
             onkeydown={(e) => nextOnEnter(e, i)}
@@ -254,7 +275,7 @@
               type="button"
               class="out-btn"
               aria-pressed={isOut}
-              aria-label="{p.name} went {outRule.label.toLowerCase()}"
+              aria-label={outRule.score === undefined ? `${p.name} called ${outRule.label}` : `${p.name} went ${outRule.label.toLowerCase()}`}
               onclick={() => update(toggleOut(game, draft, i))}>{outRule.label}</button
             >
           {/if}
@@ -272,6 +293,10 @@
         </li>
       {/each}
     </ol>
+
+    {#if adjustNote}
+      <p class="adjust-note" role="status">{adjustNote}</p>
+    {/if}
 
     <div class="actions">
       {#if !complete && editing === null && hasPhones}
@@ -591,6 +616,15 @@
     border: 1px solid var(--coral);
     background: transparent;
     color: var(--coral);
+  }
+  .adjust-note {
+    margin: 12px 0 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    font-weight: 650;
+    font-size: 14px;
   }
   .finish-hint {
     margin: 0;

@@ -1,5 +1,5 @@
 import { dealerFor, isFinished, sitsOut, totals, winners } from './scoring';
-import type { GameModule, Player, PlayerInput, RoundDraft, Session } from './types';
+import type { GameModule, Options, Player, PlayerInput, RoundDraft, Session } from './types';
 
 /** The most players any game can have. A practical cap for the screen, not a rule. */
 export const MAX_PLAYERS = 20;
@@ -10,8 +10,14 @@ export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
-export function defaultOptions(game: GameModule): Record<string, boolean> {
+export function defaultOptions(game: GameModule): Options {
   return Object.fromEntries(game.options.map((o) => [o.id, o.default]));
+}
+
+/** The game as set up for a session: options can change its rounds and winning rule. */
+export function configuredGame(game: GameModule, options: Options = defaultOptions(game)): GameModule {
+  if (!game.configure) return game;
+  return { ...game, ...game.configure({ ...defaultOptions(game), ...options }) };
 }
 
 /** Blank names become "Player N". */
@@ -22,7 +28,7 @@ export function playerNames(names: string[]): string[] {
 export function createSession(
   game: GameModule,
   entries: PlayerInput[],
-  options: Record<string, boolean> = defaultOptions(game),
+  options: Options = defaultOptions(game),
   now = Date.now(),
 ): Session {
   if (entries.length < game.players.min || entries.length > MAX_PLAYERS) {
@@ -69,6 +75,8 @@ export function toggleOut(game: GameModule, draft: RoundDraft, player: number): 
   if (!out) return draft;
   const entries = [...draft.entries];
   const sentBack = withoutPlayer(draft.sentBack, player);
+  // A mark with no score of its own (Kombio's caller) just moves; scores stay as typed.
+  if (out.score === undefined) return { ...draft, out: draft.out === player ? null : player, sentBack };
   if (draft.out === player) {
     entries[player] = null;
     return { entries, out: null, sentBack };
@@ -79,10 +87,16 @@ export function toggleOut(game: GameModule, draft: RoundDraft, player: number): 
 }
 
 /** Set one player's entry. Typing a score for the player marked out unmarks them. */
-export function setEntry(draft: RoundDraft, player: number, value: number | null): RoundDraft {
+export function setEntry(draft: RoundDraft, player: number, value: number | null, keepOut = false): RoundDraft {
   const entries = [...draft.entries];
   entries[player] = value;
-  return { entries, out: draft.out === player ? null : draft.out, sentBack: withoutPlayer(draft.sentBack, player) };
+  const out = draft.out === player && !keepOut ? null : draft.out;
+  return { entries, out, sentBack: withoutPlayer(draft.sentBack, player) };
+}
+
+/** True when the game's per-round mark doesn't set a score (typing keeps the mark). */
+export function outKeepsScore(game: GameModule): boolean {
+  return !!game.roundGrid?.out && game.roundGrid.out.score === undefined;
 }
 
 /** Accept a score a phone sent. `special` (they tapped Out or Farkle) uses the game's fixed score. */
@@ -93,6 +107,11 @@ export function approveSubmission(
   sub: { value: number; special: boolean },
 ): RoundDraft {
   const rules = game.roundGrid;
+  if (sub.special && rules?.out && rules.out.score === undefined) {
+    // Kombio: they called it, and sent their hand total too.
+    const marked = draft.out === player ? draft : toggleOut(game, draft, player);
+    return setEntry(marked, player, sub.value, true);
+  }
   if (sub.special && rules?.out) return draft.out === player ? draft : toggleOut(game, draft, player);
   if (sub.special && rules?.quickScore) return setEntry(draft, player, rules.quickScore.score);
   return setEntry(draft, player, sub.value);
@@ -138,7 +157,8 @@ export function recordRound(
   if (!draftComplete(draft)) throw new Error('Every player needs a score');
   const scores = session.scores.map((r) => [...r]);
   const outs = [...session.outs];
-  scores[round] = draft.entries as number[];
+  const adjust = game.roundGrid?.adjust;
+  scores[round] = adjust ? adjust(draft.entries as number[], draft.out) : (draft.entries as number[]);
   outs[round] = draft.out;
   const appending = round === session.scores.length;
   const next: Session = { ...session, scores, outs, draft: appending ? undefined : session.draft };

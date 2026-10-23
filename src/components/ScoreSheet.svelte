@@ -82,7 +82,10 @@
   </table>
 </div>
 {#if game.roundGrid?.out}
-  <p class="legend"><span class="swatch"></span> went {game.roundGrid.out.label.toLowerCase()}{onpickround ? ' · tap a round number to fix it' : ''}</p>
+  <p class="legend">
+    <span class="swatch"></span>
+    {game.roundGrid.out.score === undefined ? `called ${game.roundGrid.out.label}` : `went ${game.roundGrid.out.label.toLowerCase()}`}{onpickround ? ' · tap a round number to fix it' : ''}
+  </p>
 {/if}
 
 <style>
