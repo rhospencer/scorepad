@@ -4,6 +4,7 @@
   import EmojiPicker from '../components/EmojiPicker.svelte';
   import LiveScoreboard from '../components/LiveScoreboard.svelte';
   import PhoneRound from '../components/PhoneRound.svelte';
+  import PhoneTricks from '../components/PhoneTricks.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { randomEmoji } from '../lib/emoji';
   import { lobbyApi, watchLobby } from '../lib/lobbyClient';
@@ -243,7 +244,11 @@
       <button type="button" role="tab" aria-selected={tab === 'standings'} onclick={() => (tab = 'standings')}>Standings</button>
     </div>
     {#if tab === 'round'}
-      <PhoneRound {code} {me} round={view.round} submitted={view.submitted.includes(me.id)} scoreboard={view.scoreboard} />
+      {#if view.round.trick}
+        <PhoneTricks {code} {me} round={view.round} submitted={view.submitted.includes(me.id)} scoreboard={view.scoreboard} />
+      {:else}
+        <PhoneRound {code} {me} round={view.round} submitted={view.submitted.includes(me.id)} scoreboard={view.scoreboard} />
+      {/if}
     {:else if view.scoreboard}
       <LiveScoreboard board={view.scoreboard} meId={mine.id} />
     {/if}

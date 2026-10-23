@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BidTricks from '../surfaces/BidTricks.svelte';
   import RoundGrid from '../surfaces/RoundGrid.svelte';
   import type { Submission } from '../lib/lobbyTypes';
   import type { GameModule, Session } from '../lib/types';
@@ -20,6 +21,10 @@
 {#if game.surface === 'round-grid'}
   {#key session.id}
     <RoundGrid {game} {session} {onchange} {onexit} {onresults} {submissions} {onsendback} />
+  {/key}
+{:else if game.surface === 'bid-tricks'}
+  {#key session.id}
+    <BidTricks {game} {session} {onchange} {onexit} {onresults} {submissions} {onsendback} />
   {/key}
 {:else}
   <main class="screen">

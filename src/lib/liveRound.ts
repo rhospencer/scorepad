@@ -1,5 +1,6 @@
 import { finalRound, isFinished } from './scoring';
 import { dealerIndex, emptyDraft, skippedPlayers } from './session';
+import { trickDraftFor } from './tricks';
 import type { LiveRound, LiveRoundState, Submission } from './lobbyTypes';
 import type { GameModule, RoundDraft, Session } from './types';
 
@@ -15,6 +16,7 @@ export function currentDraft(session: Session): RoundDraft {
  */
 export function buildLiveRound(game: GameModule, session: Session): LiveRound | null {
   if (isFinished(game, session.scores)) return null;
+  if (game.surface === 'bid-tricks' && game.bidTricks) return buildTrickRound(game, session);
   const round = session.scores.length;
   const draft = currentDraft(session);
   const rules = game.roundGrid;
@@ -93,4 +95,37 @@ export function outConflict(game: GameModule, session: Session, draft: RoundDraf
   const already = draft.out !== null && draft.entries[draft.out] === out.score ? [draft.out] : [];
   const involved = [...already, ...claims];
   return involved.length > 1 ? involved.map((i) => session.players[i].name) : [];
+}
+
+/** The live round for bid-and-tricks games: bids first, then tricks and bonuses. */
+function buildTrickRound(game: GameModule, session: Session): LiveRound {
+  const rules = game.bidTricks!;
+  const round = session.scores.length;
+  const draft = trickDraftFor(session, round);
+  const phase = draft.phase ?? 'bid';
+  const entries = draft.tricks ?? [];
+  const dealer = dealerIndex(game, session, round);
+  return {
+    gameId: session.id,
+    round,
+    title: game.rounds?.[round]?.label ?? `Round ${round + 1}`,
+    note: phase === 'bid' ? 'Bidding' : 'Playing',
+    dealer: dealer === null ? null : session.players[dealer].name,
+    prompt: phase === 'bid' ? 'How many tricks will you win?' : 'Tricks you won',
+    keypad: [],
+    special: null,
+    players: session.players.map((p, i) => {
+      const e = entries[i];
+      const done = phase === 'bid' ? e?.bid !== null : e?.tricks !== null;
+      let state: LiveRoundState = done ? 'approved' : 'open';
+      if (!done && draft.sentBack?.includes(i)) state = 'sentBack';
+      return { lobbyId: p.lobbyId ?? null, name: p.name, ...(p.emoji ? { emoji: p.emoji } : {}), seat: i, state };
+    }),
+    trick: {
+      phase,
+      cards: rules.cards(round),
+      bonuses: rules.bonuses.map((b) => ({ ...b })),
+      bids: phase === 'play' ? entries.map((e) => e.bid) : null,
+    },
+  };
 }

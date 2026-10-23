@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isAvatarEmoji } from '../src/lib/emoji';
 import type {
   LiveRound,
+  LiveTrickRound,
   LiveRoundPlayer,
   LobbyPlayer,
   LobbyView,
@@ -135,7 +136,10 @@ export class LobbyStore {
     if (live.round !== undefined) {
       lobby.round = live.round === null ? null : cleanRound(live.round);
       for (const [id, sub] of lobby.submissions) {
-        if (!lobby.round || sub.gameId !== lobby.round.gameId || sub.round !== lobby.round.round) {
+        const stale = !lobby.round || sub.gameId !== lobby.round.gameId || sub.round !== lobby.round.round;
+        // Bid-and-tricks: once bids lock, sent bids are done with (and vice versa).
+        const otherPhase = !!lobby.round?.trick && sub.phase !== lobby.round.trick.phase;
+        if (stale || otherPhase) {
           lobby.submissions.delete(id);
         }
       }
@@ -144,7 +148,12 @@ export class LobbyStore {
   }
 
   /** A phone sends its score for the current round. Sending again replaces it until the host approves. */
-  submit(code: string, id: string, token: unknown, body: { gameId?: unknown; round?: unknown; value?: unknown; special?: unknown }): void {
+  submit(
+    code: string,
+    id: string,
+    token: unknown,
+    body: { gameId?: unknown; round?: unknown; value?: unknown; special?: unknown; phase?: unknown; bid?: unknown; tricks?: unknown; captures?: unknown },
+  ): void {
     const lobby = this.get(code);
     this.playerFor(lobby, id, token);
     const live = lobby.round;
@@ -154,6 +163,11 @@ export class LobbyStore {
     const me = live.players.find((p) => p.lobbyId === id);
     if (!me || me.state === 'sittingOut') throw new LobbyError(409, 'You don’t have a turn this round.');
     if (me.state === 'approved') throw new LobbyError(409, 'The host already has your score for this round.');
+    if (live.trick) {
+      lobby.submissions.set(id, trickSubmission(live, body));
+      this.changed(lobby);
+      return;
+    }
     const special = body.special === true;
     if (special && !live.special) throw new LobbyError(400, 'Bad request.');
     if (special && live.special?.exclusive && live.special.takenBy) {
@@ -316,6 +330,7 @@ function cleanRound(raw: unknown): LiveRound {
             takenBy: optText(sp.takenBy),
           }
         : null,
+    trick: cleanTrick(r.trick),
     players: (Array.isArray(r.players) ? r.players.slice(0, 20) : []).map(
       (p: Record<string, unknown>): LiveRoundPlayer => ({
         lobbyId: typeof p.lobbyId === 'string' ? p.lobbyId.slice(0, 40) : null,
@@ -352,5 +367,48 @@ function cleanScoreboard(raw: unknown): Scoreboard {
       behind: num(r.behind),
       last: r.last === null || r.last === undefined ? null : num(r.last),
     })),
+  };
+}
+
+/** Check a phone's bid (bid phase) or its tricks and captures (play phase). */
+function trickSubmission(
+  live: LiveRound,
+  body: { phase?: unknown; bid?: unknown; tricks?: unknown; captures?: unknown },
+): Submission {
+  const trick = live.trick!;
+  if (body.phase !== trick.phase) throw new LobbyError(409, 'The round moved on. Your screen will catch up in a moment.');
+  const count = (v: unknown) => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0 || n > trick.cards) throw new LobbyError(400, `Pick a number from 0 to ${trick.cards}.`);
+    return n;
+  };
+  const base = { gameId: live.gameId, round: live.round, value: 0, special: false, phase: trick.phase };
+  if (trick.phase === 'bid') return { ...base, bid: count(body.bid) };
+  const captures: Record<string, number> = {};
+  const raw = body.captures && typeof body.captures === 'object' ? (body.captures as Record<string, unknown>) : {};
+  for (const b of trick.bonuses) {
+    const n = Number(raw[b.id] ?? 0);
+    if (!Number.isInteger(n) || n < 0 || n > trick.cards) throw new LobbyError(400, 'Bad bonus count.');
+    if (n > 0) captures[b.id] = n;
+  }
+  return { ...base, tricks: count(body.tricks), captures };
+}
+
+/** Keep only the trick-round fields phones use. */
+function cleanTrick(raw: unknown): LiveTrickRound | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  const cards = Math.max(0, Math.min(30, Math.floor(Number(t.cards) || 0)));
+  return {
+    phase: t.phase === 'play' ? 'play' : 'bid',
+    cards,
+    bonuses: (Array.isArray(t.bonuses) ? t.bonuses.slice(0, 12) : []).map((b: Record<string, unknown>) => ({
+      id: String(b.id ?? '').slice(0, 40),
+      label: String(b.label ?? '').slice(0, 60),
+      points: Math.max(-999, Math.min(999, Math.floor(Number(b.points) || 0))),
+    })),
+    bids: Array.isArray(t.bids)
+      ? t.bids.slice(0, 20).map((b) => (b === null || b === undefined ? null : Math.max(0, Math.min(cards, Math.floor(Number(b) || 0)))))
+      : null,
   };
 }

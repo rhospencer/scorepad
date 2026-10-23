@@ -56,8 +56,15 @@
               {#if scored && sitsOut(game, session.scores, r, i)}
                 <span aria-hidden="true">–</span><span class="visually-hidden">no turn</span>
               {:else if scored}
-                {num.format(session.scores[r][i])}
+                {@const t = session.tricks?.[r]?.[i]}
+                <span class:neg={session.scores[r][i] < 0}>{num.format(session.scores[r][i])}</span>
                 {#if out}<span class="visually-hidden">({game.roundGrid?.out?.label ?? 'out'})</span>{/if}
+                {#if t && t.bid !== null && t.tricks !== null}
+                  <!-- Bid-and-tricks games: bid / tricks won, so a miss is easy to spot. -->
+                  <small class="bt" class:miss={t.bid !== t.tricks}>
+                    <span class="visually-hidden">bid</span>{t.bid}<span aria-hidden="true">/</span><span class="visually-hidden">, won</span>{t.tricks}
+                  </small>
+                {/if}
               {/if}
             </td>
           {/each}
@@ -79,6 +86,19 @@
 {/if}
 
 <style>
+  .neg {
+    color: var(--coral);
+  }
+  .bt {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    line-height: 1.1;
+  }
+  .bt.miss {
+    color: var(--coral);
+  }
   .head-cell {
     display: inline-flex;
     flex-direction: column;

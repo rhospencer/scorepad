@@ -199,4 +199,48 @@ describe('LobbyStore', () => {
       expect(errorOf(() => store.withdraw(code, b.player.id, { hostKey: 'nope' })).status).toBe(403);
     });
   });
+
+  describe('bid-and-tricks rounds', () => {
+    function trickGame(phase: 'bid' | 'play') {
+      const ctx = setup();
+      const a = ctx.store.join(ctx.code, 'Ana', '🦊');
+      ctx.store.start(ctx.code, ctx.hostKey);
+      const round = (p: 'bid' | 'play') => ({
+        gameId: 'sk',
+        round: 2,
+        title: '3 cards',
+        note: null,
+        dealer: null,
+        prompt: 'x',
+        keypad: [],
+        special: null,
+        players: [{ lobbyId: a.player.id, name: 'Ana', seat: 0, state: 'open' }],
+        trick: { phase: p, cards: 3, bonuses: [{ id: 'fourteen', label: 'Standard 14', points: 10 }], bids: null },
+      });
+      ctx.store.publish(ctx.code, ctx.hostKey, { round: round(phase) });
+      return { ...ctx, a, round };
+    }
+
+    it('takes a bid within the cards dealt, for the current phase', () => {
+      const { store, code, hostKey, a } = trickGame('bid');
+      store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'bid', bid: 2 });
+      expect(store.hostView(code, hostKey).submissions?.[a.player.id]).toMatchObject({ phase: 'bid', bid: 2 });
+      expect(errorOf(() => store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'bid', bid: 4 })).status).toBe(400);
+      expect(errorOf(() => store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'play', tricks: 1 })).status).toBe(409);
+    });
+
+    it('drops sent bids when the host locks bids and play starts', () => {
+      const { store, code, hostKey, a, round } = trickGame('bid');
+      store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'bid', bid: 1 });
+      store.publish(code, hostKey, { round: round('play') });
+      expect(store.view(code).submitted).toEqual([]);
+    });
+
+    it('takes tricks with known bonus captures only', () => {
+      const { store, code, hostKey, a } = trickGame('play');
+      store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'play', tricks: 1, captures: { fourteen: 2, junk: 9 } });
+      expect(store.hostView(code, hostKey).submissions?.[a.player.id]).toMatchObject({ tricks: 1, captures: { fourteen: 2 } });
+      expect(errorOf(() => store.submit(code, a.player.id, a.token, { gameId: 'sk', round: 2, phase: 'play', tricks: 1, captures: { fourteen: 9 } })).status).toBe(400);
+    });
+  });
 });

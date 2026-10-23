@@ -30,6 +30,11 @@ export interface Submission {
   round: number;
   value: number;
   special: boolean;
+  /** Bid-and-tricks games: which half of the round this is for, and what was sent. */
+  phase?: 'bid' | 'play';
+  bid?: number;
+  tricks?: number;
+  captures?: Record<string, number>;
 }
 
 export type LiveRoundState = 'open' | 'approved' | 'sentBack' | 'sittingOut';
@@ -62,6 +67,19 @@ export interface LiveRound {
   /** The game's one-tap score ("I went out", "I farkled"). exclusive = only one player per round. */
   special: { label: string; score: number; exclusive: boolean; takenBy: string | null } | null;
   players: LiveRoundPlayer[];
+  /** Bid-and-tricks games (Skull King). Absent for other games. */
+  trick?: LiveTrickRound | null;
+}
+
+/** A bid-and-tricks round as phones see it. */
+export interface LiveTrickRound {
+  /** Bids are sent first; after the host locks them, tricks and bonuses. */
+  phase: 'bid' | 'play';
+  /** Cards dealt: the highest bid or trick count. */
+  cards: number;
+  bonuses: { id: string; label: string; points: number }[];
+  /** Everyone's bid by seat, shown once bids are locked (null while bidding). */
+  bids: (number | null)[] | null;
 }
 
 /** One player's line on the phones' live scoreboard. */

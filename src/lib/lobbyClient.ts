@@ -49,7 +49,16 @@ export const lobbyApi = {
     code: string,
     id: string,
     token: string,
-    score: { gameId: string; round: number; value: number; special: boolean },
+    score: {
+      gameId: string;
+      round: number;
+      value: number;
+      special: boolean;
+      phase?: 'bid' | 'play';
+      bid?: number;
+      tricks?: number;
+      captures?: Record<string, number>;
+    },
   ) => api<{ ok: true }>(`${lobby(code)}/players/${id}/score`, 'PUT', { token, ...score }),
 };
 

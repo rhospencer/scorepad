@@ -2,7 +2,7 @@
 export type Mode = 'rounds' | 'turn-based' | 'free-form';
 
 /** Reusable scoring screens. A game module picks one. */
-export type SurfaceId = 'round-grid' | 'category-sheet' | 'running-tally';
+export type SurfaceId = 'round-grid' | 'bid-tricks' | 'category-sheet' | 'running-tally';
 
 export type TurnModel =
   | { type: 'none' }
@@ -45,6 +45,24 @@ export interface RoundGridRules {
   };
 }
 
+/** One player's line in a trick-taking round: their bid, the tricks they won, and bonus captures. */
+export interface TrickEntry {
+  bid: number | null;
+  tricks: number | null;
+  /** Bonus id → how many (e.g. { pirateBySkullKing: 1 }). */
+  captures: Record<string, number>;
+}
+
+/** Rules for the 'bid-tricks' surface (Skull King and friends). */
+export interface BidTricksRules {
+  /** Cards dealt (and the most tricks anyone can win) in a 0-based round. */
+  cards: (round: number) => number;
+  /** Bonus captures, in the order the screen shows them. */
+  bonuses: { id: string; label: string; points: number }[];
+  /** Points for one player's round. Can be negative. */
+  score: (entry: TrickEntry, cards: number, bonusPoints: number) => number;
+}
+
 /** What the library shows about a game before you start one. */
 export interface GameAbout {
   /** e.g. "Card game". */
@@ -73,6 +91,7 @@ export interface GameModule {
   /** Fixed round list for 'round-grid' games. */
   rounds?: RoundMeta[];
   roundGrid?: RoundGridRules;
+  bidTricks?: BidTricksRules;
   turns: TurnModel;
   options: OptionDef[];
   winner: WinnerRule;
@@ -109,6 +128,8 @@ export interface Session {
   finishedAt?: number;
   /** The phone lobby this game publishes its live scoreboard to. */
   lobby?: { code: string; hostKey: string };
+  /** 'bid-tricks' games: each scored round's bids, tricks and captures (round-major). */
+  tricks?: TrickEntry[][];
 }
 
 export interface RoundDraft {
@@ -116,4 +137,7 @@ export interface RoundDraft {
   out: number | null;
   /** Players whose phone score the host sent back this round. */
   sentBack?: number[];
+  /** 'bid-tricks' games: bids are entered first, then tricks and bonuses. */
+  phase?: 'bid' | 'play';
+  tricks?: TrickEntry[];
 }
