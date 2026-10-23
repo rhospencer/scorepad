@@ -64,7 +64,7 @@ describe('themes', () => {
   }
 
   it('follows the device for "system"', () => {
-    expect(resolveTheme('system', true)).toBe('daylight');
+    expect(resolveTheme('system', true)).toBe('beige');
     expect(resolveTheme('system', false)).toBe('midnight');
     expect(resolveTheme('felt', true)).toBe('felt');
   });

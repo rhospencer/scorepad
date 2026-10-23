@@ -13,7 +13,7 @@
   }
   const asOption = (t: (typeof THEMES)[number]): Option => ({ id: t.id, name: t.name, blurb: t.blurb, preview: [t.id] });
   const options: Option[] = [
-    { id: 'system', name: 'Match my device', blurb: 'Light or dark, following this device', preview: ['daylight', 'midnight'] },
+    { id: 'system', name: 'Match my device', blurb: 'Light or dark, following this device', preview: ['beige', 'midnight'] },
     ...THEMES.map(asOption),
   ];
 
