@@ -1,0 +1,372 @@
+/*
+ * Color themes. Each device picks its own (src/lib/theme.ts sets data-theme on <html>).
+ * A theme block also works on any element, which is how the picker previews each one.
+ *
+ * Tokens: --amber is the accent (it was amber first); --teal means "approved/done";
+ * --coral means "sent back/problem". Every text pair is checked for 4.5:1 contrast,
+ * and --line-strong for 3:1 against --surface (see theme.test.ts).
+ */
+
+:root,
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --bg: #0f1420;
+  --surface: #1a2132;
+  --surface-2: #232c42;
+  --line: #2e3850;
+  --line-strong: #6a7799;
+  --text: #f2efe8;
+  --muted: #a9b1c6;
+  --amber: #f4b942;
+  --on-amber: #1b1405;
+  --teal: #6fd3c8;
+  --on-teal: #0b2a27;
+  --coral: #f28b82;
+  --coral-text: #f7b5af;
+  --avatar-ink: #10141f;
+}
+
+[data-theme='daylight'] {
+  color-scheme: light;
+  --bg: #f6f3ec;
+  --surface: #ffffff;
+  --surface-2: #ede8dd;
+  --line: #ddd5c6;
+  --line-strong: #8a8172;
+  --text: #1d1b17;
+  --muted: #5b564d;
+  --amber: #8f5200;
+  --on-amber: #ffffff;
+  --teal: #0b6b63;
+  --on-teal: #ffffff;
+  --coral: #b42318;
+  --coral-text: #9f1d13;
+  --avatar-ink: #10141f;
+}
+
+[data-theme='felt'] {
+  color-scheme: dark;
+  --bg: #0d2a1f;
+  --surface: #143528;
+  --surface-2: #1c4434;
+  --line: #2b5a46;
+  --line-strong: #64977f;
+  --text: #f4efdd;
+  --muted: #b7c8b9;
+  --amber: #ecc463;
+  --on-amber: #1f1806;
+  --teal: #86e3be;
+  --on-teal: #0a2a1d;
+  --coral: #f5a08c;
+  --coral-text: #f8bcad;
+  --avatar-ink: #10141f;
+}
+
+
+[data-theme='contrast'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #0e0e0e;
+  --surface-2: #1c1c1c;
+  --line: #6b6b6b;
+  --line-strong: #9a9a9a;
+  --text: #ffffff;
+  --muted: #dcdcdc;
+  --amber: #ffd60a;
+  --on-amber: #000000;
+  --teal: #4df0d0;
+  --on-teal: #000000;
+  --coral: #ff7b7b;
+  --coral-text: #ffa3a3;
+  --avatar-ink: #10141f;
+}
+
+/* ---- Team palettes, named without the team names ---- */
+
+/* Royal blue and white. Royal is the official #0047ba, used for text on the white accent. */
+[data-theme='royal'] {
+  color-scheme: dark;
+  --bg: #071a3d;
+  --surface: #0c2656;
+  --surface-2: #12326c;
+  --line: #1f4687;
+  --line-strong: #7391cc;
+  --text: #ffffff;
+  --muted: #bccbe9;
+  --amber: #ffffff;
+  --on-amber: #0047ba;
+  --teal: #7fe3d0;
+  --on-teal: #062a25;
+  --coral: #ff9d93;
+  --coral-text: #ffbdb5;
+  --avatar-ink: #10141f;
+}
+
+/* Rock black, salt white, mountain blue. */
+[data-theme='iceage'] {
+  color-scheme: dark;
+  --bg: #0a0c0f;
+  --surface: #14181d;
+  --surface-2: #1d232a;
+  --line: #2c343e;
+  --line-strong: #6b7785;
+  --text: #f5f8fb;
+  --muted: #aab5c2;
+  --amber: #6cace4;
+  --on-amber: #06131f;
+  --teal: #86e0b8;
+  --on-teal: #062517;
+  --coral: #ff9286;
+  --coral-text: #ffb7ae;
+  --avatar-ink: #10141f;
+}
+
+/* Mountain purple, midnight black, sky blue. */
+[data-theme='bebop'] {
+  color-scheme: dark;
+  --bg: #0f0a1a;
+  --surface: #1c1236;
+  --surface-2: #271a4b;
+  --line: #3a2a69;
+  --line-strong: #7e6bb3;
+  --text: #f6f2ff;
+  --muted: #bfb3dc;
+  --amber: #8cc4ec;
+  --on-amber: #0a1b2a;
+  --teal: #7ee3c7;
+  --on-teal: #06281f;
+  --coral: #ff9a92;
+  --coral-text: #ffbbb4;
+  --avatar-ink: #10141f;
+}
+
+/* Neon green on pure black: neutral black and charcoal surfaces, green only as the accent.
+   Done/approved uses cyan so it doesn't blur into the green. */
+[data-theme='greenwall'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #0b0b0b;
+  --surface-2: #151515;
+  --line: #262626;
+  --line-strong: #6a6a6a;
+  --text: #f5f5f5;
+  --muted: #a6a6a6;
+  --amber: #93ca15;
+  --on-amber: #0b1402;
+  --teal: #5fd8ea;
+  --on-teal: #032429;
+  --coral: #ff8a7d;
+  --coral-text: #ffb0a6;
+  --avatar-ink: #10141f;
+}
+
+/* ---- More themes ---- */
+
+/* US Soccer: navy, red and white. Named for the chant. */
+[data-theme='ibelieve'] {
+  color-scheme: dark;
+  --bg: #0a1630;
+  --surface: #13234a;
+  --surface-2: #1b2f5e;
+  --line: #2a417a;
+  --line-strong: #7a8fc4;
+  --text: #ffffff;
+  --muted: #b9c4dd;
+  --amber: #ff6b78;
+  --on-amber: #2b050a;
+  --teal: #7fe3d0;
+  --on-teal: #062a25;
+  --coral: #ffb3a8;
+  --coral-text: #ffc9c1;
+  --avatar-ink: #10141f;
+}
+
+/* Cream notepad with a red-pen accent. */
+[data-theme='paper'] {
+  color-scheme: light;
+  --bg: #f4efe3;
+  --surface: #fffdf7;
+  --surface-2: #ebe4d3;
+  --line: #dcd3bf;
+  --line-strong: #8c8270;
+  --text: #23201a;
+  --muted: #5f584a;
+  --amber: #b3261e;
+  --on-amber: #ffffff;
+  --teal: #1f6f5c;
+  --on-teal: #ffffff;
+  --coral: #9a1f17;
+  --coral-text: #8a1c15;
+  --avatar-ink: #10141f;
+}
+
+/* Soft blossom pink with a deep rose accent. */
+[data-theme='sakura'] {
+  color-scheme: light;
+  --bg: #fbf1f3;
+  --surface: #ffffff;
+  --surface-2: #f5e1e6;
+  --line: #ead0d7;
+  --line-strong: #9b7f88;
+  --text: #2b1d22;
+  --muted: #6d5560;
+  --amber: #b8325f;
+  --on-amber: #ffffff;
+  --teal: #0f6e5c;
+  --on-teal: #ffffff;
+  --coral: #a8231c;
+  --coral-text: #97201a;
+  --avatar-ink: #10141f;
+}
+
+/* Olive LCD greens like an old handheld game. */
+[data-theme='pocket'] {
+  color-scheme: light;
+  --bg: #c4cfa1;
+  --surface: #d6dfb6;
+  --surface-2: #b4c08c;
+  --line: #9eab78;
+  --line-strong: #56633a;
+  --text: #1f2a12;
+  --muted: #3a4627;
+  --amber: #2f4318;
+  --on-amber: #e1e9c4;
+  --teal: #174d3e;
+  --on-teal: #e1e9c4;
+  --coral: #7a1c12;
+  --coral-text: #6e1910;
+  --avatar-ink: #10141f;
+}
+
+/* Warm desert sandstone with a burnt-orange accent. */
+[data-theme='redrock'] {
+  color-scheme: dark;
+  --bg: #1c110c;
+  --surface: #2a1912;
+  --surface-2: #36211a;
+  --line: #4a2f24;
+  --line-strong: #8c6a5b;
+  --text: #f7ece4;
+  --muted: #c9b2a3;
+  --amber: #f08a4b;
+  --on-amber: #2a1205;
+  --teal: #7fd6c2;
+  --on-teal: #062a22;
+  --coral: #ff9f95;
+  --coral-text: #ffbdb5;
+  --avatar-ink: #10141f;
+}
+
+/* Synthwave night: hot pink and electric cyan. */
+[data-theme='arcade'] {
+  color-scheme: dark;
+  --bg: #0c0618;
+  --surface: #170d2b;
+  --surface-2: #22133f;
+  --line: #34205c;
+  --line-strong: #7a64ad;
+  --text: #f4eeff;
+  --muted: #b8a8dc;
+  --amber: #ff4fb5;
+  --on-amber: #2a0418;
+  --teal: #3ee6f0;
+  --on-teal: #03272a;
+  --coral: #ff8f8f;
+  --coral-text: #ffb3b3;
+  --avatar-ink: #10141f;
+}
+
+/* Casino red felt with gold chips. */
+[data-theme='highroller'] {
+  color-scheme: dark;
+  --bg: #2a070b;
+  --surface: #3a0d13;
+  --surface-2: #4a131b;
+  --line: #64202a;
+  --line-strong: #a8727a;
+  --text: #fbefe6;
+  --muted: #dcc1b9;
+  --amber: #e7c35a;
+  --on-amber: #2a1a03;
+  --teal: #8ce3c2;
+  --on-teal: #062a1f;
+  --coral: #ffb0a3;
+  --coral-text: #ffc8be;
+  --avatar-ink: #10141f;
+}
+
+/* Deep ocean teal with a coral accent. */
+[data-theme='tidepool'] {
+  color-scheme: dark;
+  --bg: #04202a;
+  --surface: #0a2f3b;
+  --surface-2: #103e4c;
+  --line: #1d5263;
+  --line-strong: #5e8f9d;
+  --text: #eaf8fb;
+  --muted: #a7cbd3;
+  --amber: #ff8f7a;
+  --on-amber: #2d0c06;
+  --teal: #79e2c9;
+  --on-teal: #062a22;
+  --coral: #ffc06e;
+  --coral-text: #ffd29a;
+  --avatar-ink: #10141f;
+}
+
+/* Coffee browns with a caramel accent. */
+[data-theme='espresso'] {
+  color-scheme: dark;
+  --bg: #1b130f;
+  --surface: #261b16;
+  --surface-2: #33241d;
+  --line: #46342a;
+  --line-strong: #8a7262;
+  --text: #f6ece2;
+  --muted: #c4b1a2;
+  --amber: #e0b07a;
+  --on-amber: #2a1806;
+  --teal: #8fd3b6;
+  --on-teal: #082a1e;
+  --coral: #ff9f8f;
+  --coral-text: #ffbcb0;
+  --avatar-ink: #10141f;
+}
+
+/* Clean grayscale with one bright blue accent. */
+[data-theme='graphite'] {
+  color-scheme: dark;
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --surface-2: #282828;
+  --line: #363636;
+  --line-strong: #767676;
+  --text: #f0f0f0;
+  --muted: #a8a8a8;
+  --amber: #7ab0ff;
+  --on-amber: #0a1a33;
+  --teal: #5ad1b5;
+  --on-teal: #04261f;
+  --coral: #ff8f86;
+  --coral-text: #ffb1aa;
+  --avatar-ink: #10141f;
+}
+
+/* Icy white with a deep blue accent. */
+[data-theme='glacier'] {
+  color-scheme: light;
+  --bg: #eef4f7;
+  --surface: #ffffff;
+  --surface-2: #dfe9ef;
+  --line: #cfdce4;
+  --line-strong: #7a8d98;
+  --text: #13222b;
+  --muted: #4c5f6a;
+  --amber: #0f5f86;
+  --on-amber: #ffffff;
+  --teal: #0b6b54;
+  --on-teal: #ffffff;
+  --coral: #b42318;
+  --coral-text: #9f1d13;
+  --avatar-ink: #10141f;
+}
