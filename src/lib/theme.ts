@@ -1,7 +1,7 @@
 /** The color themes in src/themes.css. Each device (host or phone) keeps its own choice. */
 export const THEMES = [
   { id: 'midnight', name: 'Midnight', blurb: 'Dark navy, amber accents' },
-  { id: 'beige', name: 'Beige Queen', blurb: 'Light and bright for sunny tables' },
+  { id: 'beige', name: 'Beige Queen', blurb: 'Thimply thtunning: thoft, thunny and thuper thweet for thociable tableth' },
   { id: 'felt', name: 'Card table', blurb: 'Green felt and gold' },
   { id: 'contrast', name: 'High contrast', blurb: 'Black, white and yellow' },
   // Team palettes, named after a nod to the team rather than the team.
