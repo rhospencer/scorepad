@@ -38,7 +38,7 @@ interface Lobby extends Omit<LobbyView, 'submitted' | 'submissions'> {
 }
 
 /** Highest score a phone may send for one round. */
-const MAX_SCORE = 99_999;
+const MAX_SCORE = 9_999_999;
 
 /**
  * In-memory game lobbies. The host's screen creates one; phones join it with
@@ -317,6 +317,7 @@ function cleanRound(raw: unknown): LiveRound {
     note: optText(r.note),
     dealer: optText(r.dealer),
     prompt: text(r.prompt),
+    maxDigits: Math.max(1, Math.min(7, Math.floor(Number(r.maxDigits) || 5))),
     keypad: (Array.isArray(r.keypad) ? r.keypad.slice(0, 20) : []).map((k: Record<string, unknown>) => ({
       label: text(k.label, 8),
       value: Math.max(0, Math.min(MAX_SCORE, Math.floor(Number(k.value) || 0))),

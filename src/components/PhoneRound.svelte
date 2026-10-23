@@ -59,7 +59,7 @@
   const inCount = $derived(others.filter((p) => p.state === 'approved').length);
 
   function onType(el: HTMLInputElement) {
-    const digits = el.value.replace(/\D/g, '').slice(0, 5);
+    const digits = el.value.replace(/\D/g, '').slice(0, round.maxDigits ?? 5);
     if (digits !== el.value) el.value = digits;
     typed = digits;
     taps = [];

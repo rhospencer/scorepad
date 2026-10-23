@@ -119,7 +119,7 @@
   }
 
   function onInput(i: number, el: HTMLInputElement) {
-    const digits = el.value.replace(/\D/g, '').slice(0, 5);
+    const digits = el.value.replace(/\D/g, '').slice(0, game.roundGrid?.entryDigits ?? 5);
     if (digits !== el.value) el.value = digits;
     update(setEntry(draft, i, digits === '' ? null : Number(digits)));
   }
@@ -229,6 +229,7 @@
           <input
             id="score-{i}"
             class="score"
+            class:long={(game.roundGrid?.entryDigits ?? 5) > 5}
             type="text"
             inputmode="numeric"
             pattern="[0-9]*"
@@ -649,6 +650,11 @@
     font-weight: 750;
     text-align: center;
     font-variant-numeric: tabular-nums;
+  }
+  /* Money games: room for 1,000,000-sized entries. */
+  .score.long {
+    width: 128px;
+    font-size: 20px;
   }
   .score:focus {
     border-color: var(--amber);

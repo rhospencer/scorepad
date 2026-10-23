@@ -62,6 +62,8 @@ export interface LiveRound {
   dealer: string | null;
   /** The question on the phone, e.g. "Cards left in your hand". */
   prompt: string;
+  /** Most digits a score can have (money games allow 7). */
+  maxDigits?: number;
   /** Tap-to-add buttons: card values or point shortcuts. */
   keypad: { label: string; value: number }[];
   /** The game's one-tap score ("I went out", "I farkled"). exclusive = only one player per round. */

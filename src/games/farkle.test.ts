@@ -10,7 +10,7 @@ describe('Farkle module', () => {
   });
 
   it('plays to 10,000 with a Farkle button worth 0', () => {
-    expect(farkle.winner).toEqual({ rule: 'first-to-target', target: 10000 });
+    expect(farkle.winner).toEqual({ rule: 'first-to-target', target: 10000, finalTurns: true });
     expect(farkle.roundGrid?.quickScore).toEqual({ label: 'Farkle', score: 0 });
     expect(farkle.rounds).toBeUndefined();
   });

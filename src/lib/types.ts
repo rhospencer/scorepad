@@ -13,7 +13,12 @@ export type TurnModel =
 export type WinnerRule =
   | { rule: 'lowest-total' }
   | { rule: 'highest-total' }
-  | { rule: 'first-to-target'; target: number };
+  /**
+   * Play until someone reaches `target`; highest total wins. With `finalTurns`, once
+   * someone gets there everyone else takes one last turn (Farkle). Without it, the
+   * game simply ends after that round (Cover Your Assets).
+   */
+  | { rule: 'first-to-target'; target: number; finalTurns?: boolean };
 
 export interface RoundMeta {
   /** Short label shown in the round header, e.g. "6 cards". */
@@ -35,6 +40,8 @@ export interface RoundGridRules {
   entryLabel: string;
   /** A per-round "went out" button. At most one player per round; it sets their score. */
   out?: { label: string; score: number };
+  /** Most digits a score can have (default 5). Money games use more. */
+  entryDigits?: number;
   /** A per-player button that fills in a fixed score. Any number of players can use it in a round (Farkle: 0). */
   quickScore?: { label: string; score: number };
   /** How phones enter a score: the question, tap-to-add buttons, and the label for the out/quick button. */

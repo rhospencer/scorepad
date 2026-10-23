@@ -33,6 +33,8 @@ export function isFinished(game: GameModule, scores: number[][]): boolean {
   if (game.rounds) return scores.length >= game.rounds.length;
   const hit = targetReached(game, scores);
   if (!hit) return false;
+  // Without final turns the game ends with the round that got someone there.
+  if (game.winner.rule === 'first-to-target' && !game.winner.finalTurns) return true;
   // Seat 0 reaching the target means everyone else already took their last turn that round.
   return scores.length >= hit.round + (hit.player === 0 ? 1 : 2);
 }
@@ -63,6 +65,7 @@ export function finalRound(
   game: GameModule,
   scores: number[][],
 ): { round: number; reachedBy: number } | null {
+  if (game.winner.rule !== 'first-to-target' || !game.winner.finalTurns) return null;
   const hit = targetReached(game, scores);
   if (!hit || hit.player === 0) return null;
   return { round: hit.round + 1, reachedBy: hit.player };

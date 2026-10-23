@@ -46,6 +46,7 @@ export function buildLiveRound(game: GameModule, session: Session): LiveRound | 
     note: meta?.note ?? (target ? `First to ${target.toLocaleString('en-US')}` : null),
     dealer: dealer === null ? null : session.players[dealer].name,
     prompt: rules?.phone?.prompt ?? rules?.entryLabel ?? 'Your score',
+    maxDigits: rules?.entryDigits ?? 5,
     keypad: rules?.phone?.keypad ?? [],
     special,
     players: session.players.map((p, i) => {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from '../components/Avatar.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import GameDetail from '../components/GameDetail.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { viewport } from '../lib/viewport.svelte';
@@ -47,9 +48,16 @@
     else onpick(game);
   }
 
+  /** The game waiting on the delete confirmation, if any. */
+  let deleting = $state<Session | null>(null);
+
   function confirmDelete(s: Session) {
-    const what = s.finishedAt ? 'this finished game' : 'this game in progress';
-    if (confirm(`Delete ${what}? This can't be undone.`)) ondelete(s);
+    deleting = s;
+  }
+
+  function deleteMessage(s: Session): string {
+    const when = s.finishedAt ? `Finished ${dateFmt.format(s.finishedAt)}` : progress(s);
+    return `${when} · ${names(s)}. This can’t be undone.`;
   }
 </script>
 
@@ -72,8 +80,8 @@
             <li class="row">
               <button type="button" class="card resume" onclick={() => onopen(s)}>
                 <span class="faces" aria-hidden="true">
-                  {#each s.players.slice(0, 4) as p, i (p.id)}
-                    <Avatar name={p.name} seat={i} emoji={p.emoji} size={26} />
+                  {#each s.players.slice(0, 3) as p, i (p.id)}
+                    <Avatar name={p.name} seat={i} emoji={p.emoji} size={22} />
                   {/each}
                 </span>
                 <span class="card-text">
@@ -146,6 +154,20 @@
   </div>
 </main>
 
+<ConfirmDialog
+  open={deleting !== null}
+  title={deleting ? `Delete this ${getGame(deleting.gameId)?.name ?? ''} game?` : ''}
+  message={deleting ? deleteMessage(deleting) : ''}
+  confirmLabel="Delete game"
+  cancelLabel="Keep it"
+  danger
+  onconfirm={() => {
+    if (deleting) ondelete(deleting);
+    deleting = null;
+  }}
+  oncancel={() => (deleting = null)}
+/>
+
 <style>
   .brand {
     display: flex;
@@ -172,7 +194,7 @@
   }
   .layout.split {
     display: grid;
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
     gap: 32px;
     align-items: start;
   }

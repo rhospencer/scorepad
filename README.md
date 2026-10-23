@@ -46,7 +46,7 @@ Scoring surfaces (reusable screens a module picks from):
 
 | Surface | For | Status |
 | --- | --- | --- |
-| `round-grid` | Rounds games: Five Crowns, Farkle, Phase 10 | done |
+| `round-grid` | Rounds games: Five Crowns, Farkle, Cover Your Assets, Phase 10 | done |
 | `bid-tricks` | Bid-and-tricks games: Skull King (bids first, then tricks won and bonus captures; scores can go negative) | done |
 | `category-sheet` | Turn-based sheets: Yahtzee | planned |
 | `running-tally` | Free-form counters: Catan | planned |

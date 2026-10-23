@@ -40,7 +40,7 @@ export function gameStats(game: GameModule, session: Session): GameStat[] {
     // Lowest-wins games: the biggest hand hurt most. Highest-wins: the biggest turn helped most.
     const pick = turns.reduce((a, b) => (b.value > a.value ? b : a));
     stats.push({
-      label: low ? 'Worst hand' : 'Best turn',
+      label: low ? 'Worst hand' : game.mode === 'turn-based' ? 'Best turn' : 'Best round',
       value: `${players[pick.p].name} · ${num.format(pick.value)} in round ${pick.r + 1}`,
     });
   }

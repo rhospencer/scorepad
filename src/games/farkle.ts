@@ -22,7 +22,7 @@ export const farkle: GameModule = {
   },
   turns: { type: 'strict-order' },
   options: [{ id: 'cheatSheet', label: 'Show scoring cheat sheet', type: 'boolean', default: true }],
-  winner: { rule: 'first-to-target', target: 10000 },
+  winner: { rule: 'first-to-target', target: 10000, finalTurns: true },
   cheatSheet: {
     text: '1 = 100 · 5 = 50 · three 1s = 1,000 · three of a kind = 100 × face · 1–6 straight = 1,500 · three pairs = 1,500',
     option: 'cheatSheet',
