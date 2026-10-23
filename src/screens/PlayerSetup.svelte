@@ -5,14 +5,16 @@
   import InvitePanel from '../components/InvitePanel.svelte';
   import { joinUrl, lobbyApi, watchLobby } from '../lib/lobbyClient';
   import type { LobbyNetwork, LobbyView } from '../lib/lobbyTypes';
+  import { matchesFor, nameKey, newPersonId, savedPlayers } from '../lib/people';
   import { defaultOptions, MAX_PLAYERS } from '../lib/session';
   import { viewport } from '../lib/viewport.svelte';
-  import type { GameModule, Options } from '../lib/types';
+  import type { GameModule, Options, Person } from '../lib/types';
 
   interface StartingPlayer {
     name: string;
     emoji?: string;
     lobbyId?: string;
+    personId?: string;
   }
 
   interface Props {
@@ -20,6 +22,8 @@
     /** Players to start with, e.g. from the last game played. */
     initialPlayers?: StartingPlayer[];
     initialOptions?: Options;
+    /** Saved players on this device, offered as quick picks. */
+    people?: Person[];
     /** `lobby` is set when players joined by phone; the game then publishes live scores to it. */
     onstart: (
       players: StartingPlayer[],
@@ -29,7 +33,7 @@
     onback: () => void;
   }
 
-  let { game, initialPlayers = [], initialOptions, onstart, onback }: Props = $props();
+  let { game, initialPlayers = [], initialOptions, people = [], onstart, onback }: Props = $props();
 
   const min = $derived(game.players.min);
   /** The game's suggested size; going past it is allowed. */
@@ -42,10 +46,23 @@
     emoji?: string;
     /** Set when the player joined from their phone; their name and emoji come from the lobby. */
     remoteId?: string;
+    /** A phone's own lasting id, from the lobby. */
+    phoneId?: string;
+    /** A saved player picked or carried over from the last game. Typing a different name lets go of them. */
+    person?: { id: string; name: string };
+    /** The answer to "same as the saved player?": their id, or 'new' for someone else with that name. */
+    pick?: string;
   }
 
+  const byId = $derived(new Map(people.map((p) => [p.id, p])));
+
   function startingRows(): Row[] {
-    const rows: Row[] = initialPlayers.slice(0, max).map((p) => ({ key: nextKey++, name: p.name, emoji: p.emoji }));
+    const rows: Row[] = initialPlayers.slice(0, max).map((p) => ({
+      key: nextKey++,
+      name: p.name,
+      emoji: p.emoji,
+      ...(p.personId ? { person: { id: p.personId, name: p.name } } : {}),
+    }));
     while (rows.length < min) rows.push({ key: nextKey++, name: '' });
     return rows;
   }
@@ -72,6 +89,46 @@
     return new Set([...seen].filter(([, c]) => c > 1).map(([n]) => n));
   });
   const usedEmoji = $derived(new Set(rows.map((r) => r.emoji).filter((e): e is string => !!e)));
+
+  // ---- Who each row is, across games ----
+  /**
+   * Each row's lasting player: a phone's own id, the saved player picked for it, or the
+   * saved player with that name (one per row, top to bottom). Null = someone new.
+   * `matches` are the saved players a typed name could be, for the "same person?" prompt.
+   */
+  const identities = $derived.by(() => {
+    const taken = new Set<string>();
+    for (const r of rows) {
+      if (r.phoneId) taken.add(r.phoneId);
+      else if (r.person && nameKey(r.name) === nameKey(r.person.name)) taken.add(r.person.id);
+    }
+    return rows.map((r) => {
+      if (r.phoneId) return { id: r.phoneId, matches: [] as Person[] };
+      if (r.person && nameKey(r.name) === nameKey(r.person.name)) return { id: r.person.id, matches: [] as Person[] };
+      const matches = matchesFor(r.name, people).filter((p) => !taken.has(p.id));
+      const id = r.pick === 'new' ? null : (matches.find((m) => m.id === r.pick) ?? matches[0])?.id ?? null;
+      if (id) taken.add(id);
+      return { id, matches };
+    });
+  });
+
+  /** Saved players not already in the list, most recent first. */
+  const quickPicks = $derived.by(() => {
+    const inList = new Set(identities.map((x) => x.id));
+    return savedPlayers(people)
+      .filter((p) => !inList.has(p.id))
+      .slice(0, 12);
+  });
+
+  function quickPick(p: Person) {
+    picking = null;
+    const fill = { name: p.name, emoji: p.emoji, person: { id: p.id, name: p.name }, pick: undefined };
+    const blank = rows.find((r) => !r.remoteId && !r.name.trim());
+    if (blank) Object.assign(blank, fill);
+    else if (rows.length < max) rows.push({ key: nextKey++, ...fill });
+  }
+
+  const dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
   // ---- Inviting players by phone ----
   let invite = $state<{ code: string; hostKey: string } | null>(null);
@@ -103,7 +160,8 @@
       const [created, net] = await Promise.all([lobbyApi.create(game.name, openSlots), lobbyApi.network()]);
       invite = created;
       network = net;
-      stopWatching = watchLobby(created.code, syncFromLobby);
+      // As host, so the lobby includes each phone's lasting id.
+      stopWatching = watchLobby(created.code, syncFromLobby, undefined, created.hostKey);
     } catch (e) {
       inviteError = `Couldn’t start inviting: ${(e as Error).message}`;
     } finally {
@@ -119,7 +177,10 @@
     stopWatching = null;
     invite = null;
     lobby = null;
-    for (const r of rows) delete r.remoteId;
+    for (const r of rows) {
+      delete r.remoteId;
+      delete r.phoneId;
+    }
   }
 
   /** Mirror the lobby into the player list: new phones fill blank rows first. */
@@ -135,11 +196,13 @@
       if (row) {
         row.name = p.name;
         row.emoji = p.emoji;
+        row.phoneId = p.personId;
         continue;
       }
+      const joined = { name: p.name, emoji: p.emoji, remoteId: p.id, phoneId: p.personId, person: undefined, pick: undefined };
       const blank = rows.find((r) => !r.remoteId && !r.name.trim());
-      if (blank) Object.assign(blank, { name: p.name, emoji: p.emoji, remoteId: p.id });
-      else if (rows.length < max) rows.push({ key: nextKey++, name: p.name, emoji: p.emoji, remoteId: p.id });
+      if (blank) Object.assign(blank, joined);
+      else if (rows.length < max) rows.push({ key: nextKey++, ...joined });
     }
   }
 
@@ -184,7 +247,12 @@
       stopWatching?.();
     } else closeInvite();
     onstart(
-      rows.map((r) => ({ name: r.name.trim(), emoji: r.emoji, lobbyId: r.remoteId })),
+      rows.map((r, i) => ({
+        name: r.name.trim(),
+        emoji: r.emoji,
+        lobbyId: r.remoteId,
+        personId: identities[i].id ?? newPersonId(),
+      })),
       { ...options },
       lobbyLink,
     );
@@ -281,6 +349,21 @@
           disabled={rows.length <= min && !row.remoteId && !row.name}
           onclick={() => removePlayer(i)}>×</button
         >
+        {#if identities[i].matches.length > 0 && !row.remoteId}
+          {@const chosen = row.pick === 'new' ? 'new' : identities[i].id}
+          <div class="same" role="group" aria-label="Is {row.name.trim()} a saved player?">
+            <span class="same-label">{identities[i].matches.length > 1 ? 'Which one?' : 'Saved player'}</span>
+            {#each identities[i].matches as m (m.id)}
+              <button type="button" class="same-chip" aria-pressed={chosen === m.id} onclick={() => (row.pick = m.id)}>
+                <Avatar name={m.name} seat={i} emoji={m.emoji} size={22} />
+                {m.name}{identities[i].matches.length > 1 ? ` · ${dayFmt.format(m.lastPlayed)}` : ''}
+              </button>
+            {/each}
+            <button type="button" class="same-chip" aria-pressed={chosen === 'new'} onclick={() => (row.pick = 'new')}>
+              Someone new
+            </button>
+          </div>
+        {/if}
         {#if picking === row.key}
           <div class="picker">
             <EmojiPicker
@@ -304,7 +387,21 @@
   </ol>
 
   {#if duplicates.size > 0}
-    <p class="hint warn">Two players share a name. That works, but the score sheet gets confusing.</p>
+    <p class="hint warn">Two players share a name. Their records stay separate, but the score sheet can get confusing.</p>
+  {/if}
+
+  {#if quickPicks.length > 0 && rows.length < max}
+    <div class="picks">
+      <h2 class="picks-label">Saved players</h2>
+      <div class="pick-list">
+        {#each quickPicks as p, i (p.id)}
+          <button type="button" class="pick" onclick={() => quickPick(p)}>
+            <Avatar name={p.name} seat={rows.length + i} emoji={p.emoji} size={24} />
+            {p.name}
+          </button>
+        {/each}
+      </div>
+    </div>
   {/if}
 
   <button type="button" class="btn btn-ghost add" disabled={rows.length >= max} onclick={addPlayer}>
@@ -430,6 +527,60 @@
     font-weight: 650;
     text-decoration: underline;
     cursor: pointer;
+  }
+  .same {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding-left: 54px;
+  }
+  .same-label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .same-chip,
+  .pick {
+    min-height: 36px;
+    padding: 0 12px 0 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .same-chip:last-child {
+    padding-left: 12px;
+  }
+  .same-chip[aria-pressed='true'] {
+    border-color: var(--amber);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--amber);
+  }
+  .picks {
+    margin-top: 14px;
+  }
+  .picks-label {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pick-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pick {
+    min-height: 40px;
   }
   .layout.split {
     display: grid;

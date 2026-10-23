@@ -13,7 +13,7 @@ import { LobbyError, LobbyStore } from './lobby';
  *   GET    /api/lobbies/:code                   lobby snapshot
  *   GET    /api/lobbies/:code/events            live snapshots (Server-Sent Events)
  *   PATCH  /api/lobbies/:code                   host: {hostKey, openSlots?, scoreboard?, status?: 'started' | 'closed'}
- *   POST   /api/lobbies/:code/players           phone joins  {name, emoji} → {player, token}
+ *   POST   /api/lobbies/:code/players           phone joins  {name, emoji, personId?} → {player, token}
  *   PATCH  /api/lobbies/:code/players/:id       phone edits  {token, name?, emoji?}
  *   DELETE /api/lobbies/:code/players/:id       phone leaves {token} or host removes {hostKey}
  *   PUT    /api/lobbies/:code/players/:id/score phone sends this round's score {token, gameId, round, value, special}
@@ -82,7 +82,7 @@ async function route(store: LobbyStore, req: IncomingMessage, res: ServerRespons
   if (sub === 'players') {
     if (!id && method === 'POST') {
       const body = await readJson(req);
-      return send(res, 201, store.join(code, body.name, body.emoji));
+      return send(res, 201, store.join(code, body.name, body.emoji, body.personId));
     }
     if (id && method === 'PATCH') {
       const body = await readJson(req);

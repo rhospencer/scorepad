@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from '../components/Avatar.svelte';
   import Confetti from '../components/Confetti.svelte';
+  import ScoreRace from '../components/ScoreRace.svelte';
   import ScoreSheet from '../components/ScoreSheet.svelte';
   import { sessionWinners, standings } from '../lib/session';
   import { ruleText } from '../lib/scoreboard';
@@ -71,6 +72,7 @@
       </ol>
 
       {#if !viewport.wide}
+        <ScoreRace {game} {session} />
         {@render statCards()}
         <button type="button" class="btn btn-ghost btn-block toggle-sheet" aria-expanded={showSheet} onclick={() => (showSheet = !showSheet)}>
           {showSheet ? 'Hide' : 'Show'} score sheet
@@ -89,6 +91,7 @@
 
     {#if viewport.wide}
       <div class="right">
+        <ScoreRace {game} {session} />
         {@render statCards()}
         <h2 class="section-label">Score sheet</h2>
         <ScoreSheet {game} {session} showNames />
@@ -184,7 +187,7 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
   }
-  .right .stats {
+  .right :global(.race) {
     margin-top: 0;
   }
   .stat {

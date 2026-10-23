@@ -138,6 +138,7 @@ export function buildCustomGame(spec: CustomGameSpec): GameModule {
 
   return {
     id: spec.id,
+    icon: spec.icon || '🎲',
     name: spec.name || 'Untitled game',
     mode: 'rounds',
     surface: 'round-grid',

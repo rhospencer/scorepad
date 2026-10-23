@@ -99,6 +99,8 @@ export interface GameAbout {
 export interface GameModule {
   id: string;
   name: string;
+  /** An emoji shown beside the name in the library. */
+  icon: string;
   mode: Mode;
   surface: SurfaceId;
   /**
@@ -173,10 +175,25 @@ export interface Player {
   emoji?: string;
   /** Set when they joined from their phone, so their phone can find them on the live scoreboard. */
   lobbyId?: string;
+  /** Who this is across games (a saved player or a phone's own id). Records follow it, not the name. */
+  personId?: string;
+}
+
+/**
+ * Someone this device has played with. Phones bring their own id; players typed in on
+ * the host get one the first time. Saved on the host, offered as quick picks in setup.
+ */
+export interface Person {
+  id: string;
+  name: string;
+  emoji?: string;
+  lastPlayed: number;
+  /** Set when merged into another person ("the same Maya"): their records count as that person's. */
+  mergedInto?: string;
 }
 
 /** A player as entered in setup: a plain name, or a name with an emoji avatar (and phone link). */
-export type PlayerInput = string | { name: string; emoji?: string; lobbyId?: string };
+export type PlayerInput = string | { name: string; emoji?: string; lobbyId?: string; personId?: string };
 
 /** A game in progress or finished. Stored on the device. */
 export interface Session {

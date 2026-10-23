@@ -7,6 +7,7 @@ import type { GameModule } from '../lib/types';
 export const coverYourAssets: GameModule = {
   id: 'cover-your-assets',
   name: 'Cover Your Assets',
+  icon: '💰',
   mode: 'rounds',
   surface: 'round-grid',
   players: { min: 2, max: 6 },

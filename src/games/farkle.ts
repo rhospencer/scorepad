@@ -8,6 +8,7 @@ import type { GameModule } from '../lib/types';
 export const farkle: GameModule = {
   id: 'farkle',
   name: 'Farkle',
+  icon: '🎲',
   mode: 'turn-based',
   surface: 'round-grid',
   players: { min: 2, max: 8, beyond: { tip: 'Any number can play. Bigger tables just mean longer rounds.' } },

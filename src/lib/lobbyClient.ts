@@ -39,8 +39,8 @@ export const lobbyApi = {
     api<{ ok: true }>(`${lobby(code)}/players/${id}`, 'DELETE', { hostKey }),
 
   // Phone
-  join: (code: string, name: string, emoji: string) =>
-    api<{ player: LobbyPlayer; token: string }>(`${lobby(code)}/players`, 'POST', { name, emoji }),
+  join: (code: string, name: string, emoji: string, personId?: string) =>
+    api<{ player: LobbyPlayer; token: string }>(`${lobby(code)}/players`, 'POST', { name, emoji, personId }),
   update: (code: string, id: string, token: string, changes: { name?: string; emoji?: string }) =>
     api<LobbyPlayer>(`${lobby(code)}/players/${id}`, 'PATCH', { token, ...changes }),
   leave: (code: string, id: string, token: string) =>

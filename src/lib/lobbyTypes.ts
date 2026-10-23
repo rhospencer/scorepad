@@ -4,6 +4,8 @@ export interface LobbyPlayer {
   id: string;
   name: string;
   emoji: string;
+  /** The phone's lasting player id, so records follow them between games. Only the host sees it. */
+  personId?: string;
 }
 
 export interface LobbyView {

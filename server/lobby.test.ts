@@ -38,6 +38,18 @@ describe('LobbyStore', () => {
     expect(store.view(code).players).toEqual([player]);
   });
 
+  it('passes a phone’s lasting id to the host only, and drops malformed ones', () => {
+    const { store, code, hostKey } = setup();
+    const { player } = store.join(code, 'Ana', '🦊', 'a1b2c3d4-e5f6-7890-abcd-ef0123456789');
+    store.join(code, 'Ben', '🐼', '<script>');
+    expect(store.view(code).players.map((p) => p.personId)).toEqual([undefined, undefined]);
+    expect(store.hostView(code, hostKey).players.map((p) => p.personId)).toEqual([
+      'a1b2c3d4-e5f6-7890-abcd-ef0123456789',
+      undefined,
+    ]);
+    expect(player.personId).toBe('a1b2c3d4-e5f6-7890-abcd-ef0123456789');
+  });
+
   it('rejects blank names, duplicate names, and unknown emoji', () => {
     const { store, code } = setup();
     store.join(code, 'Ana', '🦊');

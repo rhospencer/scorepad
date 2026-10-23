@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from '../components/Avatar.svelte';
+  import BackupCard from '../components/BackupCard.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import GameDetail from '../components/GameDetail.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
@@ -22,6 +23,9 @@
     ondelete: (session: Session) => void;
     oncreate: () => void;
     onedit: (game: GameModule) => void;
+    onplayers: () => void;
+    /** A backup was restored; reload the lists. */
+    onrestored: () => void;
   }
 
   let {
@@ -35,7 +39,14 @@
     ondelete,
     oncreate,
     onedit,
+    onplayers,
+    onrestored,
   }: Props = $props();
+
+  /** A few recent players, for the faces on the Player records card. */
+  const recentPlayers = $derived(
+    [...new Map(recent.flatMap((s) => s.players).map((p) => [p.name.trim().toLocaleLowerCase(), p])).values()].slice(0, 3),
+  );
 
   const gameName = (s: Session) => getSessionGame(s)?.name ?? s.gameId;
 
@@ -126,6 +137,7 @@
               aria-pressed={viewport.wide ? game.id === selected?.id : undefined}
               onclick={() => pickGame(game)}
             >
+              <span class="game-icon" aria-hidden="true">{game.icon}</span>
               <span class="card-text">
                 <strong>{game.name}</strong>
                 <span class="meta">{game.mode} · {game.players.min}–{game.players.max}+ players</span>
@@ -148,7 +160,7 @@
               aria-pressed={viewport.wide ? game.id === selected?.id : undefined}
               onclick={() => pickGame(game)}
             >
-              <span class="game-icon" aria-hidden="true">{game.custom?.icon}</span>
+              <span class="game-icon" aria-hidden="true">{game.icon}</span>
               <span class="card-text">
                 <strong>{game.name}</strong>
                 <span class="meta">{game.about?.kind} · {game.players.min}–{game.players.max}+ players</span>
@@ -171,6 +183,20 @@
       </ul>
 
       {#if recent.length > 0}
+        <h2 class="section-label">Players</h2>
+        <button type="button" class="card" onclick={onplayers}>
+          <span class="faces" aria-hidden="true">
+            {#each recentPlayers as p, i (p.id)}
+              <Avatar name={p.name} seat={i} emoji={p.emoji} size={28} />
+            {/each}
+          </span>
+          <span class="card-text">
+            <strong>Player records</strong>
+            <span class="meta">Wins, streaks and head-to-head</span>
+          </span>
+          <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+
         <h2 class="section-label">Recent games</h2>
         <ul class="list">
           {#each recent as s (s.id)}
@@ -186,6 +212,9 @@
           {/each}
         </ul>
       {/if}
+
+      <h2 class="section-label">Your data</h2>
+      <BackupCard {onrestored} />
       <div class="bottom-space"></div>
     </div>
 
@@ -245,7 +274,7 @@
   }
   .layout.split {
     display: grid;
-    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
     gap: 32px;
     align-items: start;
   }

@@ -40,3 +40,23 @@ export function saveProfile(profile: Profile, storage: Store | undefined = safeS
     // Private mode: they'll just type it again next time.
   }
 }
+
+const ID_KEY = 'scorepad:person-id';
+
+/**
+ * This phone's lasting player id, made on first use. Sent when joining a game so the
+ * host's records follow this player even if someone else has the same name.
+ * Null when storage is blocked: the host then treats them like a typed-in player.
+ */
+export function personId(storage: Store | undefined = safeStorage()): string | null {
+  try {
+    const saved = storage?.getItem(ID_KEY);
+    if (saved && /^[\w-]{8,64}$/.test(saved)) return saved;
+    if (!storage) return null;
+    const id = crypto.randomUUID();
+    storage.setItem(ID_KEY, id);
+    return id;
+  } catch {
+    return null;
+  }
+}

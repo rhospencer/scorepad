@@ -11,6 +11,7 @@ const rounds: RoundMeta[] = WILDS.map((wild, i) => ({
 export const fiveCrowns: GameModule = {
   id: 'five-crowns',
   name: 'Five Crowns',
+  icon: '👑',
   mode: 'rounds',
   surface: 'round-grid',
   // One deck suits 2–7. Bigger tables shuffle in a second deck.

@@ -36,8 +36,14 @@ export function createSession(
   }
   const inputs = entries.map((e) => (typeof e === 'string' ? { name: e } : e));
   const players: Player[] = playerNames(inputs.map((e) => e.name)).map((name, i) => {
-    const { emoji, lobbyId } = inputs[i];
-    return { id: newId(), name, ...(emoji ? { emoji } : {}), ...(lobbyId ? { lobbyId } : {}) };
+    const { emoji, lobbyId, personId } = inputs[i];
+    return {
+      id: newId(),
+      name,
+      ...(emoji ? { emoji } : {}),
+      ...(lobbyId ? { lobbyId } : {}),
+      ...(personId ? { personId } : {}),
+    };
   });
   const custom = game.custom ? { custom: JSON.parse(JSON.stringify(game.custom)) as typeof game.custom } : {};
   return { id: newId(), gameId: game.id, players, scores: [], outs: [], options, startedAt: now, ...custom };

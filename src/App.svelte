@@ -3,23 +3,27 @@
   import { getSessionGame } from './games';
   import { blankSpec, buildCustomGame, copySpec } from './lib/customGame';
   import {
+    allPeople,
     customGames,
     deleteCustomGame,
     deleteSession,
     finishedSessions,
     inProgressSessions,
     saveCustomGame,
+    savePeople,
     saveSession,
   } from './lib/db';
   import { buildLiveRound } from './lib/liveRound';
   import { lobbyApi, watchLobby } from './lib/lobbyClient';
   import type { LobbyView } from './lib/lobbyTypes';
+  import { peopleAfterGame } from './lib/people';
   import { buildScoreboard } from './lib/scoreboard';
   import { createSession, rematch } from './lib/session';
-  import type { CustomGameSpec, GameModule, Options, PlayerInput, Session } from './lib/types';
+  import type { CustomGameSpec, GameModule, Options, Person, PlayerInput, Session } from './lib/types';
   import GameBuilder from './screens/GameBuilder.svelte';
   import Library from './screens/Library.svelte';
   import Play from './screens/Play.svelte';
+  import Players from './screens/Players.svelte';
   import PlayerSetup from './screens/PlayerSetup.svelte';
   import Results from './screens/Results.svelte';
 
@@ -28,6 +32,7 @@
     | { name: 'setup'; game: GameModule }
     | { name: 'play' }
     | { name: 'results' }
+    | { name: 'players'; sessions: Session[] }
     | { name: 'builder'; spec: CustomGameSpec; existing: boolean };
 
   let screen = $state<Screen>({ name: 'library' });
@@ -42,6 +47,8 @@
   let recent = $state<Session[]>([]);
   /** Games built in the app. */
   let customs = $state<CustomGameSpec[]>([]);
+  /** Saved players: quick picks in setup, and merges for player records. */
+  let people = $state<Person[]>([]);
   const customModules = $derived(customs.map(buildCustomGame));
   /** The library selects this after a save, so the new game is in view. */
   let justSaved = $state<string | null>(null);
@@ -59,7 +66,12 @@
   });
 
   async function refreshLists() {
-    [inProgress, recent, customs] = await Promise.all([inProgressSessions(), finishedSessions(), customGames()]);
+    [inProgress, recent, customs, people] = await Promise.all([
+      inProgressSessions(),
+      finishedSessions(),
+      customGames(),
+      allPeople(),
+    ]);
   }
 
   /** Every session change is saved straight away, and sent to phones when players joined by phone. */
@@ -106,6 +118,28 @@
     refreshLists().catch(() => (saveFailed = true));
   }
 
+  async function showPlayers() {
+    const sessions = await finishedSessions(Infinity).catch(() => recent);
+    screen = { name: 'players', sessions };
+  }
+
+  /** Remember who played: new saved players, and fresh names, emoji and dates. */
+  async function rememberPlayers(s: Session) {
+    const updates = peopleAfterGame(s.players, people);
+    await savePeople(updates).catch(() => (saveFailed = true));
+    const fresh = new Map(updates.map((p) => [p.id, p]));
+    people = [...people.filter((p) => !fresh.has(p.id)), ...updates];
+  }
+
+  async function setMerge(id: string, into: string | undefined) {
+    const p = people.find((x) => x.id === id);
+    if (!p) return;
+    const next: Person = { ...p, mergedInto: into };
+    if (!into) delete next.mergedInto;
+    await savePeople([next]).catch(() => (saveFailed = true));
+    people = people.map((x) => (x.id === id ? next : x));
+  }
+
   function open(s: Session) {
     session = s;
     publish(s);
@@ -120,6 +154,7 @@
   ) {
     const s = createSession(g, players, options);
     persist(lobby ? { ...s, lobby } : s);
+    rememberPlayers(s);
     screen = { name: 'play' };
   }
 
@@ -166,6 +201,16 @@
     ondelete={remove}
     oncreate={() => (screen = { name: 'builder', spec: blankSpec(), existing: false })}
     onedit={(g) => g.custom && (screen = { name: 'builder', spec: g.custom, existing: true })}
+    onplayers={showPlayers}
+    onrestored={() => refreshLists().catch(() => (saveFailed = true))}
+  />
+{:else if screen.name === 'players'}
+  <Players
+    sessions={screen.sessions}
+    {people}
+    onback={goLibrary}
+    onmerge={(id, into) => setMerge(id, into)}
+    onsplit={(id) => setMerge(id, undefined)}
   />
 {:else if screen.name === 'builder'}
   {@const b = screen}
@@ -184,7 +229,8 @@
   {@const previous = previousFor(g)}
   <PlayerSetup
     game={g}
-    initialPlayers={previous?.players.map((p) => ({ name: p.name, emoji: p.emoji }))}
+    initialPlayers={previous?.players.map((p) => ({ name: p.name, emoji: p.emoji, personId: p.personId }))}
+    {people}
     initialOptions={previous?.options}
     onstart={(players, options, lobby) => start(g, players, options, lobby)}
     onback={goLibrary}
@@ -204,7 +250,9 @@
     {game}
     {session}
     onrematch={() => {
-      persist(rematch(session!));
+      const next = rematch(session!);
+      persist(next);
+      rememberPlayers(next);
       screen = { name: 'play' };
     }}
     onnewgame={goLibrary}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadProfile, saveProfile } from './profile';
+import { loadProfile, personId, saveProfile } from './profile';
 
 function memory() {
   const m = new Map<string, string>();
@@ -27,5 +27,13 @@ describe('phone profile', () => {
     const blocked = { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } };
     expect(loadProfile(blocked)).toBeNull();
     expect(() => saveProfile({ name: 'Ana', emoji: '🦊' }, blocked)).not.toThrow();
+  });
+
+  it('keeps one lasting player id per phone', () => {
+    const s = memory();
+    const id = personId(s);
+    expect(id).toMatch(/^[\w-]{8,64}$/);
+    expect(personId(s)).toBe(id);
+    expect(personId(undefined)).toBeNull();
   });
 });

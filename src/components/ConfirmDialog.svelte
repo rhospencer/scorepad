@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
+
   /**
    * The app's own confirmation dialog (instead of the browser's confirm()).
    * Escape, the backdrop and Cancel all cancel; focus starts on Cancel so a stray
@@ -14,9 +16,12 @@
     danger?: boolean;
     onconfirm: () => void;
     oncancel: () => void;
+    /** Extra detail shown under the message. */
+    children?: Snippet;
   }
 
-  let { open, title, message, confirmLabel, cancelLabel = 'Cancel', danger = false, onconfirm, oncancel }: Props = $props();
+  let { open, title, message, confirmLabel, cancelLabel = 'Cancel', danger = false, onconfirm, oncancel, children }: Props =
+    $props();
 
   let dialog = $state<HTMLDialogElement>();
 
@@ -45,6 +50,7 @@
     {/if}
     <h2 id="confirm-title">{title}</h2>
     <p id="confirm-message">{message}</p>
+    {@render children?.()}
     <div class="buttons">
       <!-- svelte-ignore a11y_autofocus -->
       <button type="button" class="btn" autofocus onclick={oncancel}>{cancelLabel}</button>

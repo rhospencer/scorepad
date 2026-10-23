@@ -10,6 +10,7 @@ const roundsOf = (n: number): RoundMeta[] => Array.from({ length: n }, (_, i) =>
 export const kombio: GameModule = {
   id: 'kombio',
   name: 'Kombio',
+  icon: '🃏',
   mode: 'rounds',
   surface: 'round-grid',
   players: { min: 2, max: 6 },

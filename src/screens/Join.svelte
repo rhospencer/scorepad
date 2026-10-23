@@ -8,7 +8,7 @@
   import PhoneTricks from '../components/PhoneTricks.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { randomEmoji } from '../lib/emoji';
-  import { loadProfile, saveProfile } from '../lib/profile';
+  import { loadProfile, personId, saveProfile } from '../lib/profile';
   import { lobbyApi, watchLobby } from '../lib/lobbyClient';
   import type { LobbyView } from '../lib/lobbyTypes';
 
@@ -142,7 +142,7 @@
       } else {
         // Save exactly what was sent; the screen may update while the request is in flight.
         const sent = { name, emoji };
-        const res = await lobbyApi.join(code, sent.name, sent.emoji);
+        const res = await lobbyApi.join(code, sent.name, sent.emoji, personId() ?? undefined);
         me = { id: res.player.id, token: res.token };
         saveMe(code, me);
         saveProfile(sent);

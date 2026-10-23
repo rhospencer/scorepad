@@ -8,6 +8,7 @@ const rounds: RoundMeta[] = Array.from({ length: 10 }, (_, i) => ({
 export const skullKing: GameModule = {
   id: 'skull-king',
   name: 'Skull King',
+  icon: '🏴‍☠️',
   mode: 'rounds',
   surface: 'bid-tricks',
   players: { min: 2, max: 8, beyond: { tip: 'Big tables run out of cards in the late rounds; agree on a house rule.' } },

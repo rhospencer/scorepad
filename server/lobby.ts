@@ -80,11 +80,12 @@ export class LobbyStore {
     return toView(this.get(code), false);
   }
 
-  join(code: string, name: unknown, emoji: unknown): { player: LobbyPlayer; token: string } {
+  join(code: string, name: unknown, emoji: unknown, personId?: unknown): { player: LobbyPlayer; token: string } {
     const lobby = this.get(code);
     if (lobby.status !== 'open') throw new LobbyError(409, 'This game has already started.');
     if (lobby.players.length >= lobby.openSlots) throw new LobbyError(409, 'This game is full.');
     const player: LobbyPlayer = { id: this.secret(8), name: this.checkName(lobby, name), emoji: checkEmoji(emoji) };
+    if (typeof personId === 'string' && /^[\w-]{8,64}$/.test(personId)) player.personId = personId;
     const token = this.secret();
     lobby.players.push(player);
     lobby.tokens.set(player.id, token);
@@ -296,7 +297,8 @@ function toView(lobby: Lobby, host: boolean): LobbyView {
     gameName: lobby.gameName,
     openSlots: lobby.openSlots,
     status: lobby.status,
-    players: lobby.players.map((p) => ({ ...p })),
+    // Phones see each other's names and emoji, never their lasting ids.
+    players: lobby.players.map(({ personId, ...p }) => (host && personId ? { ...p, personId } : p)),
     scoreboard: lobby.scoreboard,
     round: lobby.round,
     submitted: [...lobby.submissions.keys()],
