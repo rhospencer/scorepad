@@ -1,5 +1,7 @@
 <script lang="ts">
+  import CalloutToast from '../components/CalloutToast.svelte';
   import BidTricks from '../surfaces/BidTricks.svelte';
+  import { roundCallout } from '../lib/callout';
   import RoundGrid from '../surfaces/RoundGrid.svelte';
   import type { Submission } from '../lib/lobbyTypes';
   import type { GameModule, Session } from '../lib/types';
@@ -15,7 +17,11 @@
   }
 
   let { game, session, onchange, onexit, onresults, submissions, onsendback }: Props = $props();
+
+  const callout = $derived(roundCallout(game, session));
 </script>
+
+<CalloutToast {callout} player={callout ? session.players[callout.seat] : null} />
 
 <!-- The game module picks the scoring surface. New surfaces plug in here. -->
 {#if game.surface === 'round-grid'}

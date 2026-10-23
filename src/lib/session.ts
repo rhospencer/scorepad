@@ -39,7 +39,8 @@ export function createSession(
     const { emoji, lobbyId } = inputs[i];
     return { id: newId(), name, ...(emoji ? { emoji } : {}), ...(lobbyId ? { lobbyId } : {}) };
   });
-  return { id: newId(), gameId: game.id, players, scores: [], outs: [], options, startedAt: now };
+  const custom = game.custom ? { custom: JSON.parse(JSON.stringify(game.custom)) as typeof game.custom } : {};
+  return { id: newId(), gameId: game.id, players, scores: [], outs: [], options, startedAt: now, ...custom };
 }
 
 /** A new game with the same players and options. */
@@ -54,6 +55,7 @@ export function rematch(session: Session, now = Date.now()): Session {
     startedAt: now,
     // Same players, same phones: keep publishing to their lobby.
     ...(session.lobby ? { lobby: { ...session.lobby } } : {}),
+    ...(session.custom ? { custom: session.custom } : {}),
   };
 }
 
@@ -164,6 +166,22 @@ export function recordRound(
   const next: Session = { ...session, scores, outs, draft: appending ? undefined : session.draft };
   if (isFinished(game, scores) && !next.finishedAt) next.finishedAt = now;
   return next;
+}
+
+/** True once the game is over: its rounds or target are done, or the host ended it. */
+export function gameOver(game: GameModule, session: Session): boolean {
+  return isFinished(game, session.scores) || (!!game.hostEnds && !!session.finishedAt);
+}
+
+/** Host-ended games: the host taps End game. Scoring the next round reopens it. */
+export function endGame(session: Session, now = Date.now()): Session {
+  return { ...session, draft: undefined, finishedAt: now };
+}
+
+/** Undo End game, to keep playing. */
+export function reopenGame(session: Session): Session {
+  const { finishedAt: _, ...rest } = session;
+  return rest;
 }
 
 export function optionOn(session: Session, id: string | undefined): boolean {

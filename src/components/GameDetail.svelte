@@ -6,9 +6,11 @@
   interface Props {
     game: GameModule;
     onstart: () => void;
+    /** Games built in the app: open the builder. */
+    onedit?: () => void;
   }
 
-  let { game, onstart }: Props = $props();
+  let { game, onstart, onedit }: Props = $props();
 
   const num = new Intl.NumberFormat();
 
@@ -19,6 +21,7 @@
     const lengthChoice = game.options.some((o) => o.type === 'choice' && o.id === 'length');
     const list = [{ label: 'Players', value: `${game.players.min}–${game.players.max}+` }];
     if (lengthChoice) list.push({ label: 'Length', value: 'Your choice' });
+    else if (g.hostEnds) list.push({ label: 'Length', value: 'Host ends it' });
     else if (g.rounds) list.push({ label: 'Rounds', value: String(g.rounds.length) });
     if (w.rule === 'first-to-target') list.push({ label: 'Play to', value: num.format(w.target) });
     list.push({ label: 'Winner', value: w.rule === 'lowest-total' ? 'Lowest total' : 'Highest total' });
@@ -30,10 +33,13 @@
 <article class="detail" aria-labelledby="game-title">
   <header class="head">
     <div class="intro">
-      <p class="eyebrow">{game.mode}{game.about ? ` · ${game.about.kind}` : ''}</p>
+      <p class="eyebrow">{game.custom ? 'Your game' : game.mode}{game.about ? ` · ${game.about.kind}` : ''}</p>
       <h1 id="game-title">{game.name}</h1>
       {#if game.about}<p class="tagline">{game.about.tagline}</p>{/if}
     </div>
+    {#if onedit}
+      <button type="button" class="btn start-edit" onclick={onedit}>Edit game</button>
+    {/if}
     <button type="button" class="btn btn-primary start" onclick={onstart}>
       Start a game
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -106,6 +112,11 @@
     font-size: 17px;
     line-height: 1.5;
     color: var(--muted);
+  }
+  .start-edit {
+    margin-left: auto;
+    padding: 0 22px;
+    border-radius: 28px;
   }
   .start {
     padding: 0 28px;

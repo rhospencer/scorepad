@@ -4,7 +4,7 @@
   import GameDetail from '../components/GameDetail.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { viewport } from '../lib/viewport.svelte';
-  import { games, getGame, getSessionGame } from '../games';
+  import { games, getSessionGame } from '../games';
   import { sessionWinners } from '../lib/session';
   import type { GameModule, Session } from '../lib/types';
 
@@ -13,12 +13,31 @@
     recent: Session[];
     /** Shown when the device won't let us save (e.g. some private browsing modes). */
     saveFailed?: boolean;
+    /** Games built in the app. */
+    customGames?: GameModule[];
+    /** A game to select on open (desktop), e.g. one just saved. */
+    initialSelected?: string | null;
     onpick: (game: GameModule) => void;
     onopen: (session: Session) => void;
     ondelete: (session: Session) => void;
+    oncreate: () => void;
+    onedit: (game: GameModule) => void;
   }
 
-  let { inProgress, recent, saveFailed = false, onpick, onopen, ondelete }: Props = $props();
+  let {
+    inProgress,
+    recent,
+    saveFailed = false,
+    customGames = [],
+    initialSelected = null,
+    onpick,
+    onopen,
+    ondelete,
+    oncreate,
+    onedit,
+  }: Props = $props();
+
+  const gameName = (s: Session) => getSessionGame(s)?.name ?? s.gameId;
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
@@ -40,8 +59,8 @@
 
   // Desktop: the game shown in the detail pane. Phones go straight to setup instead.
   // Nothing is selected until a game is clicked; the pane shows a prompt until then.
-  let selectedId = $state<string | null>(null);
-  const selected = $derived(games.find((g) => g.id === selectedId) ?? null);
+  let selectedId = $state<string | null>((() => initialSelected)());
+  const selected = $derived([...games, ...customGames].find((g) => g.id === selectedId) ?? null);
 
   function pickGame(game: GameModule) {
     if (viewport.wide) selectedId = game.id;
@@ -85,7 +104,7 @@
                   {/each}
                 </span>
                 <span class="card-text">
-                  <strong>{getGame(s.gameId)?.name ?? s.gameId}</strong>
+                  <strong>{gameName(s)}</strong>
                   <span class="meta">{progress(s)} · {names(s)}</span>
                 </span>
               </button>
@@ -119,6 +138,38 @@
         {/each}
       </ul>
 
+      <h2 class="section-label">Your games</h2>
+      <ul class="list">
+        {#each customGames as game (game.id)}
+          <li class="row">
+            <button
+              type="button"
+              class="card game"
+              aria-pressed={viewport.wide ? game.id === selected?.id : undefined}
+              onclick={() => pickGame(game)}
+            >
+              <span class="game-icon" aria-hidden="true">{game.custom?.icon}</span>
+              <span class="card-text">
+                <strong>{game.name}</strong>
+                <span class="meta">{game.about?.kind} · {game.players.min}–{game.players.max}+ players</span>
+              </span>
+            </button>
+            <button type="button" class="icon-btn" aria-label="Edit {game.name}" onclick={() => onedit(game)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></svg>
+            </button>
+          </li>
+        {/each}
+        <li>
+          <button type="button" class="card create" onclick={oncreate}>
+            <span class="plus" aria-hidden="true">+</span>
+            <span class="card-text">
+              <strong>Create a game</strong>
+              <span class="meta">Your own rules and score sheet</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+
       {#if recent.length > 0}
         <h2 class="section-label">Recent games</h2>
         <ul class="list">
@@ -126,7 +177,7 @@
             <li class="row">
               <button type="button" class="card" onclick={() => onopen(s)}>
                 <span class="card-text">
-                  <strong>{getGame(s.gameId)?.name ?? s.gameId} · {outcome(s)}</strong>
+                  <strong>{gameName(s)} · {outcome(s)}</strong>
                   <span class="meta">{dateFmt.format(s.finishedAt)} · {names(s)}</span>
                 </span>
               </button>
@@ -141,7 +192,7 @@
     {#if viewport.wide}
       <div class="main-pane">
         {#if selected}
-          <GameDetail game={selected} onstart={() => onpick(selected)} />
+          <GameDetail game={selected} onstart={() => onpick(selected)} onedit={selected.custom ? () => onedit(selected) : undefined} />
         {:else}
           <div class="empty">
             <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4" /><circle cx="9" cy="9" r="1" fill="currentColor" /><circle cx="15" cy="15" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /></svg>
@@ -156,7 +207,7 @@
 
 <ConfirmDialog
   open={deleting !== null}
-  title={deleting ? `Delete this ${getGame(deleting.gameId)?.name ?? ''} game?` : ''}
+  title={deleting ? `Delete this ${gameName(deleting)} game?` : ''}
   message={deleting ? deleteMessage(deleting) : ''}
   confirmLabel="Delete game"
   cancelLabel="Keep it"
@@ -270,6 +321,24 @@
   }
   .faces > :global(*) {
     box-shadow: 0 0 0 2px var(--surface);
+  }
+  .card.create {
+    border-style: dashed;
+    color: var(--amber);
+  }
+  .card.create .meta {
+    color: var(--muted);
+  }
+  .plus,
+  .game-icon {
+    width: 32px;
+    flex: none;
+    text-align: center;
+    font-size: 26px;
+    line-height: 1;
+  }
+  .plus {
+    font-weight: 700;
   }
   .chev {
     flex: none;

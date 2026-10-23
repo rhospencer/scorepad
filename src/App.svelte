@@ -1,19 +1,34 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getGame, getSessionGame } from './games';
-  import { deleteSession, finishedSessions, inProgressSessions, saveSession } from './lib/db';
+  import { getSessionGame } from './games';
+  import { blankSpec, buildCustomGame, copySpec } from './lib/customGame';
+  import {
+    customGames,
+    deleteCustomGame,
+    deleteSession,
+    finishedSessions,
+    inProgressSessions,
+    saveCustomGame,
+    saveSession,
+  } from './lib/db';
   import { buildLiveRound } from './lib/liveRound';
   import { lobbyApi, watchLobby } from './lib/lobbyClient';
   import type { LobbyView } from './lib/lobbyTypes';
   import { buildScoreboard } from './lib/scoreboard';
   import { createSession, rematch } from './lib/session';
-  import type { GameModule, Options, PlayerInput, Session } from './lib/types';
+  import type { CustomGameSpec, GameModule, Options, PlayerInput, Session } from './lib/types';
+  import GameBuilder from './screens/GameBuilder.svelte';
   import Library from './screens/Library.svelte';
   import Play from './screens/Play.svelte';
   import PlayerSetup from './screens/PlayerSetup.svelte';
   import Results from './screens/Results.svelte';
 
-  type Screen = { name: 'library' } | { name: 'setup'; game: GameModule } | { name: 'play' } | { name: 'results' };
+  type Screen =
+    | { name: 'library' }
+    | { name: 'setup'; game: GameModule }
+    | { name: 'play' }
+    | { name: 'results' }
+    | { name: 'builder'; spec: CustomGameSpec; existing: boolean };
 
   let screen = $state<Screen>({ name: 'library' });
   /** The game being played or just finished. */
@@ -25,13 +40,18 @@
   let saveFailed = $state(false);
   let inProgress = $state<Session[]>([]);
   let recent = $state<Session[]>([]);
+  /** Games built in the app. */
+  let customs = $state<CustomGameSpec[]>([]);
+  const customModules = $derived(customs.map(buildCustomGame));
+  /** The library selects this after a save, so the new game is in view. */
+  let justSaved = $state<string | null>(null);
 
   onMount(async () => {
     // Pick up where we left off: reopen the newest unfinished game.
     try {
       await refreshLists();
       const resume = inProgress[0];
-      if (resume && getGame(resume.gameId)) open(resume);
+      if (resume && getSessionGame(resume)) open(resume);
     } catch {
       saveFailed = true;
     }
@@ -39,7 +59,7 @@
   });
 
   async function refreshLists() {
-    [inProgress, recent] = await Promise.all([inProgressSessions(), finishedSessions()]);
+    [inProgress, recent, customs] = await Promise.all([inProgressSessions(), finishedSessions(), customGames()]);
   }
 
   /** Every session change is saved straight away, and sent to phones when players joined by phone. */
@@ -115,6 +135,17 @@
     await refreshLists().catch(() => (saveFailed = true));
   }
 
+  async function saveBuilt(spec: CustomGameSpec) {
+    await saveCustomGame(spec).catch(() => (saveFailed = true));
+    justSaved = spec.id;
+    goLibrary();
+  }
+
+  async function removeBuilt(id: string) {
+    await deleteCustomGame(id).catch(() => (saveFailed = true));
+    goLibrary();
+  }
+
   /** The most recent game of this type, to prefill player names and options. */
   function previousFor(g: GameModule): Session | undefined {
     return [session, ...inProgress, ...recent].find((s) => s?.gameId === g.id) ?? undefined;
@@ -124,7 +155,30 @@
 {#if !loaded}
   <!-- Blank while IndexedDB loads (a few ms) so the library doesn't flash before a resumed game. -->
 {:else if screen.name === 'library'}
-  <Library {inProgress} {recent} {saveFailed} onpick={(g) => (screen = { name: 'setup', game: g })} onopen={open} ondelete={remove} />
+  <Library
+    {inProgress}
+    {recent}
+    {saveFailed}
+    customGames={customModules}
+    initialSelected={justSaved}
+    onpick={(g) => (screen = { name: 'setup', game: g })}
+    onopen={open}
+    ondelete={remove}
+    oncreate={() => (screen = { name: 'builder', spec: blankSpec(), existing: false })}
+    onedit={(g) => g.custom && (screen = { name: 'builder', spec: g.custom, existing: true })}
+  />
+{:else if screen.name === 'builder'}
+  {@const b = screen}
+  {#key b.spec.id}
+    <GameBuilder
+      initial={b.spec}
+      existing={b.existing}
+      onsave={saveBuilt}
+      oncancel={goLibrary}
+      oncopy={() => (screen = { name: 'builder', spec: copySpec(b.spec), existing: false })}
+      ondelete={() => removeBuilt(b.spec.id)}
+    />
+  {/key}
 {:else if screen.name === 'setup'}
   {@const g = screen.game}
   {@const previous = previousFor(g)}

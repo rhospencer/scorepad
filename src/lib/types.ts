@@ -118,6 +118,52 @@ export interface GameModule {
   /** Short reference text. `option` names a boolean option that shows or hides it. */
   cheatSheet?: { text: string; option?: string };
   about?: GameAbout;
+  /** No set end: the host taps End game when they're done. */
+  hostEnds?: boolean;
+  /** Set for games built in the app's game builder: the recipe it was made from. */
+  custom?: CustomGameSpec;
+}
+
+/**
+ * A game someone built in the app. Saved on the device, and copied into every game
+ * started from it, so editing or deleting it later never changes past games.
+ */
+export interface CustomGameSpec {
+  /** Starts with "custom-". */
+  id: string;
+  name: string;
+  /** An emoji shown in the library. */
+  icon: string;
+  kind: string;
+  players: { min: number; max: number };
+  win: 'highest' | 'lowest';
+  /** rounds = a set number of rounds; target = until someone reaches a score; host = the host ends it. */
+  end: 'rounds' | 'target' | 'host';
+  rounds: number;
+  /** Optional name and note for each round ("3 cards", "Wilds: 3s"). Null = numbered rounds. */
+  roundNames: RoundMeta[] | null;
+  target: number;
+  /** Target, highest wins: once someone gets there, everyone else takes one last turn. */
+  finalTurns: boolean;
+  entryLabel: string;
+  allowNegative: boolean;
+  bigNumbers: boolean;
+  /** Tap-to-add buttons, on the phone keypad. */
+  shortcuts: number[];
+  /**
+   * One player a round can be marked ("Went out"). score: what their score becomes (null = only marks them).
+   * bonus is added to them; if they had the best score that round everyone else gets othersGet,
+   * otherwise they get penalty. All may be negative.
+   */
+  out: { label: string; score: number | null; bonus: number; othersGet: number; penalty: number } | null;
+  /** A per-player button that fills in a fixed score ("Bust" = 0). */
+  quick: { label: string; score: number } | null;
+  rotateDealer: boolean;
+  cheatSheet: string;
+  /** House rules, shown with the game. */
+  notes: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Player {
@@ -150,6 +196,8 @@ export interface Session {
   lobby?: { code: string; hostKey: string };
   /** 'bid-tricks' games: each scored round's bids, tricks and captures (round-major). */
   tricks?: TrickEntry[][];
+  /** Games built in the app: the rules as they were when this game started. */
+  custom?: CustomGameSpec;
 }
 
 export interface RoundDraft {

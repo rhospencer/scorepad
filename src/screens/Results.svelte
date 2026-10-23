@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from '../components/Avatar.svelte';
+  import Confetti from '../components/Confetti.svelte';
   import ScoreSheet from '../components/ScoreSheet.svelte';
   import { sessionWinners, standings } from '../lib/session';
   import { ruleText } from '../lib/scoreboard';
@@ -31,6 +32,8 @@
     return names.length <= 2 ? names.join(' & ') : `${names.slice(0, -1).join(', ')} & ${names.at(-1)}`;
   }
 </script>
+
+<Confetti />
 
 <main class="screen wide">
   <div class="top-bar">

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { flip } from 'svelte/animate';
   import Avatar from './Avatar.svelte';
+  import Confetti from './Confetti.svelte';
   import type { Scoreboard } from '../lib/lobbyTypes';
   import { ordinal } from '../lib/scoreboard';
 
@@ -29,6 +30,8 @@
     return last > 0 ? `+${num.format(last)}` : num.format(last);
   }
 </script>
+
+{#if board.finished}<Confetti />{/if}
 
 <section class="board" aria-live="polite">
   <p class="eyebrow">{board.gameName} · live</p>

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { isAvatarEmoji } from '../src/lib/emoji';
 import type {
+  Callout,
   LiveRound,
   LiveTrickRound,
   LiveRoundPlayer,
@@ -374,7 +375,15 @@ function cleanScoreboard(raw: unknown): Scoreboard {
       behind: num(r.behind),
       last: r.last === null || r.last === undefined ? null : num(r.last),
     })),
+    callout: cleanCallout(b.callout),
   };
+}
+
+function cleanCallout(raw: unknown): Callout | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  if (c.kind !== 'lead' && c.kind !== 'tie' && c.kind !== 'climb') return null;
+  return { id: String(c.id ?? '').slice(0, 60), kind: c.kind, seat: Number(c.seat) || 0, text: String(c.text ?? '').slice(0, 80) };
 }
 
 /** Check a phone's bid (bid phase) or its tricks and captures (play phase). */

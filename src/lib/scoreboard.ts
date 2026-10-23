@@ -1,5 +1,6 @@
-import { finalRound, isFinished, sitsOut } from './scoring';
-import { sessionWinners, standings } from './session';
+import { roundCallout } from './callout';
+import { finalRound, sitsOut } from './scoring';
+import { gameOver, sessionWinners, standings } from './session';
 import type { Scoreboard } from './lobbyTypes';
 import type { GameModule, Session } from './types';
 
@@ -25,7 +26,7 @@ export function ruleText(game: GameModule): string {
 /** The standings phones show, built from the host's game after every change. */
 export function buildScoreboard(game: GameModule, session: Session): Scoreboard {
   const scored = session.scores.length;
-  const finished = isFinished(game, session.scores);
+  const finished = gameOver(game, session);
   const final = finalRound(game, session.scores);
   const lastRound = scored - 1;
 
@@ -43,6 +44,7 @@ export function buildScoreboard(game: GameModule, session: Session): Scoreboard 
     rule: ruleText(game),
     finished,
     winners: finished ? sessionWinners(game, session).map((i) => session.players[i].name) : [],
+    callout: roundCallout(game, session),
     rows: standings(game, session).map((s) => ({
       lobbyId: s.player.lobbyId ?? null,
       name: s.player.name,

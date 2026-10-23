@@ -1,5 +1,5 @@
-import { finalRound, isFinished } from './scoring';
-import { dealerIndex, emptyDraft, skippedPlayers } from './session';
+import { finalRound } from './scoring';
+import { dealerIndex, emptyDraft, gameOver, skippedPlayers } from './session';
 import { trickDraftFor } from './tricks';
 import type { LiveRound, LiveRoundState, Submission } from './lobbyTypes';
 import type { GameModule, RoundDraft, Session } from './types';
@@ -15,7 +15,7 @@ export function currentDraft(session: Session): RoundDraft {
  * Scores themselves are left out so players can't see each other's until the round ends.
  */
 export function buildLiveRound(game: GameModule, session: Session): LiveRound | null {
-  if (isFinished(game, session.scores)) return null;
+  if (gameOver(game, session)) return null;
   if (game.surface === 'bid-tricks' && game.bidTricks) return buildTrickRound(game, session);
   const round = session.scores.length;
   const draft = currentDraft(session);

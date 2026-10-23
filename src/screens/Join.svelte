@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
+  import CalloutToast from '../components/CalloutToast.svelte';
   import EmojiPicker from '../components/EmojiPicker.svelte';
   import LiveScoreboard from '../components/LiveScoreboard.svelte';
   import PhoneRound from '../components/PhoneRound.svelte';
   import PhoneTricks from '../components/PhoneTricks.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import { randomEmoji } from '../lib/emoji';
+  import { loadProfile, saveProfile } from '../lib/profile';
   import { lobbyApi, watchLobby } from '../lib/lobbyClient';
   import type { LobbyView } from '../lib/lobbyTypes';
 
@@ -30,8 +32,14 @@
   let view = $state<LobbyView | null>(null);
   let me = $state<Me | null>(null);
   let editing = $state(false);
-  let name = $state('');
-  let emoji = $state<string | undefined>();
+  // Returning players: this phone remembers who it last played as.
+  const remembered = loadProfile();
+  let name = $state(remembered?.name ?? '');
+  let emoji = $state<string | undefined>(remembered?.emoji);
+  /** Set when their usual avatar was taken by someone else in this game. */
+  let usualTaken = $state<string | null>(null);
+  /** The avatar check runs once, on arrival; later updates include this phone's own join. */
+  let avatarChecked = false;
   let error = $state('');
   let busy = $state(false);
   let reconnecting = $state(false);
@@ -92,7 +100,16 @@
         (v) => {
           reconnecting = false;
           view = v;
-          if (!emoji) emoji = randomEmoji(v.players.map((p) => p.emoji));
+          if (!avatarChecked) {
+            avatarChecked = true;
+            const others = v.players.filter((p) => p.id !== me?.id).map((p) => p.emoji);
+            if (!emoji) emoji = randomEmoji(others);
+            else if (!v.players.some((p) => p.id === me?.id) && others.includes(emoji)) {
+              // Their usual avatar is taken in this game: offer another, and say why.
+              usualTaken = emoji;
+              emoji = randomEmoji(others);
+            }
+          }
         },
         () => (reconnecting = true),
       );
@@ -118,12 +135,17 @@
     busy = true;
     try {
       if (mine && me) {
-        await lobbyApi.update(code, me.id, me.token, { name, emoji });
+        const sent = { name, emoji };
+        await lobbyApi.update(code, me.id, me.token, sent);
+        saveProfile(sent);
         editing = false;
       } else {
-        const res = await lobbyApi.join(code, name, emoji);
+        // Save exactly what was sent; the screen may update while the request is in flight.
+        const sent = { name, emoji };
+        const res = await lobbyApi.join(code, sent.name, sent.emoji);
         me = { id: res.player.id, token: res.token };
         saveMe(code, me);
+        saveProfile(sent);
       }
     } catch (err) {
       error = (err as Error).message;
@@ -170,6 +192,11 @@
     <p class="banner" role="status">Reconnecting to the host…</p>
   {/if}
 
+  {#if phase === 'started' && view?.scoreboard}
+    {@const c = view.scoreboard.callout}
+    <CalloutToast callout={c} player={c ? view.scoreboard.rows.find((r) => r.seat === c.seat) : null} />
+  {/if}
+
   {#if phase === 'code'}
     <h1 class="title">Join a game</h1>
     <form class="stack" onsubmit={submitCode}>
@@ -190,7 +217,15 @@
     </form>
     <p class="muted">The code is on the host’s screen.</p>
   {:else if phase === 'profile'}
-    <h1 class="title">{editing ? 'Change your look' : 'Who are you?'}</h1>
+    <h1 class="title">
+      {editing ? 'Change your look' : remembered ? `Welcome back, ${remembered.name}!` : 'Who are you?'}
+    </h1>
+    {#if !editing && remembered}
+      <p class="muted welcome">Your name and avatar are filled in from last time. Change anything, or just join.</p>
+    {/if}
+    {#if !editing && usualTaken}
+      <p class="muted welcome">Someone here already has {usualTaken}, so you’ve got a new one for this game.</p>
+    {/if}
     <form class="stack" onsubmit={submitProfile}>
       <div class="preview">
         <Avatar name={name} seat={mine ? mySeat : (view?.players.length ?? 0)} {emoji} size={88} />
@@ -315,6 +350,9 @@
   .tabs button[aria-selected='true'] {
     background: var(--amber);
     color: var(--on-amber);
+  }
+  .welcome {
+    margin: -8px 0 8px;
   }
   .stack {
     display: flex;

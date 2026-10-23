@@ -1,10 +1,11 @@
 <script lang="ts">
   import Avatar from '../components/Avatar.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
   import ScoreSheet from '../components/ScoreSheet.svelte';
   import { outConflict, pendingSubmissions } from '../lib/liveRound';
   import type { Submission } from '../lib/lobbyTypes';
-  import { finalRound, isFinished, totals } from '../lib/scoring';
+  import { finalRound, totals } from '../lib/scoring';
   import { viewport } from '../lib/viewport.svelte';
   import {
     approveSubmission,
@@ -12,7 +13,10 @@
     dealerIndex,
     draftComplete,
     draftFor,
+    endGame,
+    gameOver,
     recordRound,
+    reopenGame,
     outKeepsScore,
     sendBack,
     setEntry,
@@ -45,7 +49,7 @@
   let rowsEl = $state<HTMLOListElement>();
 
   function initialTab() {
-    return isFinished(game, session.scores) ? 'sheet' : 'round';
+    return gameOver(game, session) ? 'sheet' : 'round';
   }
 
   function initialDraft() {
@@ -54,7 +58,9 @@
 
   const round = $derived(editing ?? session.scores.length);
   const roundCount = $derived(game.rounds?.length ?? null);
-  const allScored = $derived(isFinished(game, session.scores) && editing === null);
+  const allScored = $derived(gameOver(game, session) && editing === null);
+  /** Host-ended games: asking before End game. */
+  let confirmingEnd = $state(false);
   const target = $derived(game.winner.rule === 'first-to-target' ? game.winner.target : null);
   /** Lowest-wins games that end when someone reaches a score (Kombio "to 100"). */
   const endAt = $derived(game.winner.rule === 'lowest-total' ? (game.winner.endAt ?? null) : null);
@@ -143,7 +149,9 @@
     const groups = new Map<number, string[]>();
     for (const c of changed) groups.set(c.diff, [...(groups.get(c.diff) ?? []), c.name]);
     const caller = session.players[draft.out].name;
-    return `${caller} called ${outRule?.label}: ` + [...groups].map(([d, names]) => `${names.join(', ')} ${d > 0 ? '+' : ''}${d}`).join(' · ');
+    // Built games can label the marker anything, so name it rather than say "called".
+    const who = game.custom ? `${outRule?.label} (${caller})` : `${caller} called ${outRule?.label}`;
+    return `${who}: ` + [...groups].map(([d, names]) => `${names.join(', ')} ${d > 0 ? '+' : ''}${d}`).join(' · ');
   });
 
   /** Enter jumps to the next empty score. */
@@ -180,10 +188,15 @@
 {#snippet entry()}
   {#if allScored}
     <p class="eyebrow">{game.name}</p>
-    <h1 class="title">{roundCount ? `All ${roundCount} rounds scored` : `Someone reached ${num.format(target ?? endAt ?? 0)}`}</h1>
+    <h1 class="title">
+      {game.hostEnds ? 'Game ended' : roundCount ? `All ${roundCount} rounds scored` : `Someone reached ${num.format(target ?? endAt ?? 0)}`}
+    </h1>
     <p class="muted">Tap a round on the score sheet to fix a score.</p>
     <div class="actions">
       <button type="button" class="btn btn-primary btn-block" onclick={onresults}>See results</button>
+      {#if game.hostEnds}
+        <button type="button" class="btn btn-block" onclick={() => onchange(reopenGame(session))}>Keep playing</button>
+      {/if}
     </div>
   {:else}
     {#if editing !== null}
@@ -309,6 +322,9 @@
       <button type="button" class="btn btn-primary btn-block" disabled={!complete} onclick={finishRound}>
         {editing !== null ? `Save round ${editing + 1}` : isLast ? 'Finish game' : 'Finish round'}
       </button>
+      {#if game.hostEnds && editing === null && session.scores.length > 0}
+        <button type="button" class="btn btn-block" onclick={() => (confirmingEnd = true)}>End game</button>
+      {/if}
     </div>
   {/if}
 {/snippet}
@@ -356,6 +372,19 @@
     {@render entry()}
   {/if}
 </main>
+
+<ConfirmDialog
+  open={confirmingEnd}
+  title="End the game now?"
+  message={`Round ${session.scores.length + 1} won’t count. ${table[1]?.rank === 1 ? 'It ends in a tie at the top.' : `${table[0]?.player.name} wins with ${num.format(table[0]?.total ?? 0)}.`}`}
+  confirmLabel="End game"
+  cancelLabel="Keep playing"
+  onconfirm={() => {
+    confirmingEnd = false;
+    onchange(endGame(session));
+  }}
+  oncancel={() => (confirmingEnd = false)}
+/>
 
 <style>
   .game-name {

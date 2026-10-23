@@ -118,6 +118,18 @@ export interface Scoreboard {
   winners: string[];
   /** Best first. */
   rows: ScoreboardRow[];
+  /** A moment from the latest round ("Ana takes the lead!"), or null. */
+  callout?: Callout | null;
+}
+
+/** A lead change or big climb, shown briefly on the host and on phones. */
+export interface Callout {
+  /** Game id + round, so each moment shows once. */
+  id: string;
+  kind: 'lead' | 'tie' | 'climb';
+  /** The player it's about. */
+  seat: number;
+  text: string;
 }
 
 /** What the host needs to build a join link phones can reach. */
