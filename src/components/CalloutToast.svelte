@@ -16,14 +16,16 @@
 
   let { callout, player = null }: Props = $props();
 
-  // Whatever is there on mount counts as already seen.
-  const initial = (() => callout?.id ?? null)();
   let shown = $state<Callout | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // The last callout shown (or on screen at mount). Not reactive on purpose: closing the
+  // banner must not make this effect think the same callout is new and show it again.
+  let seen: string | null = (() => callout?.id ?? null)();
 
   $effect(() => {
     const next = callout;
-    if (!next || next.id === initial || next.id === shown?.id) return;
+    if (!next || next.id === seen) return;
+    seen = next.id;
     shown = next;
     clearTimeout(timer);
     timer = setTimeout(() => (shown = null), 4000);
