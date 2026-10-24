@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import EmojiPicker from '../components/EmojiPicker.svelte';
   import InvitePanel from '../components/InvitePanel.svelte';
   import { joinUrl, lobbyApi, watchLobby } from '../lib/lobbyClient';
@@ -31,9 +32,14 @@
       lobby?: { code: string; hostKey: string },
     ) => void;
     onback: () => void;
+    /** Stop offering a saved player. */
+    onforget?: (id: string) => void;
   }
 
-  let { game, initialPlayers = [], initialOptions, people = [], onstart, onback }: Props = $props();
+  let { game, initialPlayers = [], initialOptions, people = [], onstart, onback, onforget }: Props = $props();
+
+  /** The saved player waiting on the forget confirmation. */
+  let forgetting = $state<Person | null>(null);
 
   const min = $derived(game.players.min);
   /** The game's suggested size; going past it is allowed. */
@@ -395,10 +401,15 @@
       <h2 class="picks-label">Saved players</h2>
       <div class="pick-list">
         {#each quickPicks as p, i (p.id)}
-          <button type="button" class="pick" onclick={() => quickPick(p)}>
-            <Avatar name={p.name} seat={rows.length + i} emoji={p.emoji} size={24} />
-            {p.name}
-          </button>
+          <span class="pick-group">
+            <button type="button" class="pick" onclick={() => quickPick(p)}>
+              <Avatar name={p.name} seat={rows.length + i} emoji={p.emoji} size={24} />
+              {p.name}
+            </button>
+            {#if onforget}
+              <button type="button" class="forget" aria-label="Forget {p.name}" onclick={() => (forgetting = p)}>×</button>
+            {/if}
+          </span>
         {/each}
       </div>
     </div>
@@ -452,6 +463,20 @@
   {/if}
   </div>
 </form>
+
+<ConfirmDialog
+  open={forgetting !== null}
+  title={forgetting ? `Forget ${forgetting.name}?` : ''}
+  message="They come off your saved players. Games they already played keep their scores."
+  confirmLabel="Forget"
+  cancelLabel="Keep"
+  danger
+  onconfirm={() => {
+    if (forgetting) onforget?.(forgetting.id);
+    forgetting = null;
+  }}
+  oncancel={() => (forgetting = null)}
+/>
 
 <style>
   .players,
@@ -581,6 +606,33 @@
   }
   .pick {
     min-height: 40px;
+  }
+  /* The name and its × share one pill. */
+  .pick-group {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .pick-group .pick {
+    border: 0;
+    background: none;
+    padding-right: 4px;
+  }
+  .forget {
+    width: 32px;
+    height: 32px;
+    margin-right: 4px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--muted);
+    font-size: 17px;
+    cursor: pointer;
+  }
+  .forget:hover {
+    background: var(--surface-2);
   }
   .layout.split {
     display: grid;

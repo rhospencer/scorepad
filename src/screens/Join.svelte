@@ -9,7 +9,7 @@
   import ThemePicker from '../components/ThemePicker.svelte';
   import { randomEmoji } from '../lib/emoji';
   import { loadProfile, personId, saveProfile } from '../lib/profile';
-  import { lobbyApi, watchLobby } from '../lib/lobbyClient';
+  import { isMissingLobby, lobbyApi, watchLobby } from '../lib/lobbyClient';
   import type { LobbyView } from '../lib/lobbyTypes';
 
   /** The phone side of a lobby: enter a name, pick an emoji, wait for the host to start. */
@@ -27,6 +27,15 @@
 
   // The link's code is read once; after that the player can type another.
   const fromLink = () => initialCode.toUpperCase();
+  /** A player's own QR code (?claim=…): this phone becomes that player. Used once. */
+  let claimSecret: string | null = (() => {
+    try {
+      return new URLSearchParams(location.search).get('claim');
+    } catch {
+      return null;
+    }
+  })();
+  let claimError = $state('');
   let code = $state(fromLink());
   let codeInput = $state(fromLink());
   let view = $state<LobbyView | null>(null);
@@ -51,10 +60,19 @@
   const mySeat = $derived(mine && view ? view.players.indexOf(mine) : 0);
   const taken = $derived(new Set(view?.players.filter((p) => p.id !== me?.id).map((p) => p.emoji) ?? []));
 
+  /** In the host's game: on the scoreboard (or the host hasn't published one yet). */
+  const admitted = $derived(!!mine && (!view?.scoreboard || view.scoreboard.rows.some((r) => r.lobbyId === mine.id)));
+  const underway = $derived(view?.status === 'started');
+
   const phase = $derived.by(() => {
     if (!view) return 'code';
     if (view.status === 'closed') return 'closed';
-    if (view.status === 'started') return mine ? 'started' : 'too-late';
+    if (view.status === 'started') {
+      if (mine) return admitted ? 'started' : view.scoreboard?.finished ? 'too-late' : 'asking';
+      // Mid-game, a new phone asks to join; one the host turned away sees why.
+      if (me) return 'removed';
+      return view.scoreboard?.finished ? 'too-late' : 'profile';
+    }
     if (me && !mine) return 'removed';
     if (mine && !editing) return 'waiting';
     return 'profile';
@@ -63,7 +81,13 @@
   onMount(() => {
     if (code) connect(code);
   });
-  onDestroy(() => stopWatching?.());
+  /** Retrying a code the server doesn't know yet (it restarted; the host will bring it back). */
+  let waitingForHost = $state(false);
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => {
+    stopWatching?.();
+    clearTimeout(retryTimer);
+  });
 
   const storageKey = (c: string) => `scorepad:join:${c}`;
 
@@ -85,15 +109,28 @@
     }
   }
 
-  async function connect(c: string) {
+  async function connect(c: string, attempt = 0) {
     error = '';
     busy = true;
+    clearTimeout(retryTimer);
     try {
       // A plain fetch first, so a wrong code gets the server's message.
       view = await lobbyApi.view(c);
       code = view.code;
       me = loadMe(code);
       history.replaceState(null, '', `/join/${code}`);
+      if (claimSecret) {
+        const secret = claimSecret;
+        claimSecret = null;
+        try {
+          const res = await lobbyApi.claim(code, secret);
+          me = { id: res.player.id, token: res.token };
+          saveMe(code, me);
+          saveProfile({ name: res.player.name, emoji: res.player.emoji });
+        } catch (err) {
+          claimError = (err as Error).message;
+        }
+      }
       stopWatching?.();
       stopWatching = watchLobby(
         code,
@@ -113,9 +150,18 @@
         },
         () => (reconnecting = true),
       );
+      waitingForHost = false;
     } catch (e) {
       view = null;
-      error = (e as Error).message;
+      // A phone that was in this game (or came from the host's link) waits for the host to
+      // bring the game back after a server restart, for up to about 10 minutes.
+      if (isMissingLobby(e) && (loadMe(c.toUpperCase()) || c.toUpperCase() === fromLink()) && attempt < 200) {
+        waitingForHost = true;
+        retryTimer = setTimeout(() => connect(c, attempt + 1), 3000);
+      } else {
+        waitingForHost = false;
+        error = (e as Error).message;
+      }
     } finally {
       busy = false;
     }
@@ -191,13 +237,21 @@
   {#if reconnecting}
     <p class="banner" role="status">Reconnecting to the host…</p>
   {/if}
+  {#if claimError}
+    <p class="banner" role="alert">{claimError}</p>
+  {/if}
 
   {#if phase === 'started' && view?.scoreboard}
     {@const c = view.scoreboard.callout}
     <CalloutToast callout={c} player={c ? view.scoreboard.rows.find((r) => r.seat === c.seat) : null} />
   {/if}
 
-  {#if phase === 'code'}
+  {#if phase === 'code' && waitingForHost}
+    <section class="hero" aria-live="polite">
+      <h1>Reconnecting to {code}</h1>
+      <p class="muted">The game isn’t reachable right now. It comes back when the host reopens it on their screen<span class="dots" aria-hidden="true"></span></p>
+    </section>
+  {:else if phase === 'code'}
     <h1 class="title">Join a game</h1>
     <form class="stack" onsubmit={submitCode}>
       <label class="section-label" for="code">Game code</label>
@@ -220,6 +274,9 @@
     <h1 class="title">
       {editing ? 'Change your look' : remembered ? `Welcome back, ${remembered.name}!` : 'Who are you?'}
     </h1>
+    {#if underway && !editing}
+      <p class="muted welcome">This game is under way. Ask to join and the host can let you in.</p>
+    {/if}
     {#if !editing && remembered}
       <p class="muted welcome">Your name and avatar are filled in from last time. Change anything, or just join.</p>
     {/if}
@@ -247,7 +304,7 @@
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       <div class="actions">
         <button type="submit" class="btn btn-primary btn-block" disabled={busy || !name.trim() || !emoji}>
-          {editing ? 'Save' : 'Join game'}
+          {editing ? 'Save' : underway ? 'Ask to join' : 'Join game'}
         </button>
         {#if editing}
           <button type="button" class="btn btn-ghost btn-block" onclick={() => (editing = false)}>Cancel</button>
@@ -295,6 +352,16 @@
       <h1>Game on!</h1>
       <p class="muted">Scores are kept on the host’s screen. Good luck, {mine.name}.</p>
     </section>
+  {:else if phase === 'asking' && mine}
+    <section class="hero" aria-live="polite">
+      <Avatar name={mine.name} seat={mySeat} emoji={mine.emoji} size={120} />
+      <h1>Asked to join</h1>
+      <p class="muted">The host will let you in<span class="dots" aria-hidden="true"></span></p>
+    </section>
+    <div class="actions">
+      <button type="button" class="btn btn-ghost btn-block" onclick={leave}>Cancel request</button>
+    </div>
+    {#if view?.scoreboard}<LiveScoreboard board={view.scoreboard} meId={null} />{/if}
   {:else if phase === 'removed'}
     <section class="hero" aria-live="polite">
       <h1>You’re not in this game</h1>
@@ -305,8 +372,8 @@
     </div>
   {:else if phase === 'too-late'}
     <section class="hero" aria-live="polite">
-      <h1>This game already started</h1>
-      <p class="muted">Ask the host to add you next game. You can follow the scores here.</p>
+      <h1>This game is over</h1>
+      <p class="muted">Ask the host to add you next game. Here’s how it ended.</p>
     </section>
     {#if view?.scoreboard}<LiveScoreboard board={view.scoreboard} meId={null} />{/if}
   {:else if phase === 'closed'}

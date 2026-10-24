@@ -2,24 +2,28 @@
   import Avatar from './Avatar.svelte';
   import { seatColor } from '../lib/avatar';
   import { viewport } from '../lib/viewport.svelte';
-  import type { GameModule, Session } from '../lib/types';
+  import type { RaceData } from '../lib/race';
 
   interface Props {
-    game: GameModule;
-    session: Session;
+    /** Built by raceData() on the host, or sent to phones with the standings. */
+    race: RaceData;
   }
 
-  let { game, session }: Props = $props();
+  let { race }: Props = $props();
 
-  const low = $derived(game.winner.rule === 'lowest-total');
-  const rounds = $derived(session.scores.length);
+  const low = $derived(race.low);
+  const players = $derived(race.players);
   /** Each player's running total: [start, after round 1, ...]. */
-  const series = $derived(
-    session.players.map((_, p) => {
-      let sum = 0;
-      return [0, ...session.scores.map((r) => (sum += r[p] ?? 0))];
-    }),
-  );
+  const series = $derived(race.series);
+  const rounds = $derived(Math.max(0, (series[0]?.length ?? 1) - 1));
+  /** The first point of each player's line (late joiners start where they joined). */
+  const from = (p: number) => race.from[p] ?? 0;
+  const pointsFor = (s: number[], p: number) =>
+    s
+      .map((v, i) => [i, v] as const)
+      .slice(from(p))
+      .map(([i, v]) => `${x(i)},${y(v)}`)
+      .join(' ');
 
   // Geometry in viewBox units. Room on the right for the name at each line's end.
   const W = $derived(viewport.wide ? 680 : 340);
@@ -36,7 +40,7 @@
   }
 
   const scale = $derived.by(() => {
-    const all = series.flat();
+    const all = series.flatMap((s, p) => s.slice(from(p)));
     const step = niceStep(Math.max(...all) - Math.min(0, ...all));
     const lo = Math.floor(Math.min(0, ...all) / step) * step;
     const hi = Math.max(Math.ceil(Math.max(...all) / step) * step, lo + step);
@@ -98,13 +102,13 @@
     active === null
       ? null
       : series
-          .map((s, p) => ({ p, total: s[active!] }))
+          .flatMap((s, p) => (active! >= from(p) ? [{ p, total: s[active!] }] : []))
           .sort((a, b) => (low ? a.total - b.total : b.total - a.total)),
   );
 
   const summary = $derived(
     `Running totals by round. ${series
-      .map((s, p) => ({ name: session.players[p].name, total: s[rounds] }))
+      .map((s, p) => ({ name: players[p].name, total: s[rounds] }))
       .sort((a, b) => (low ? a.total - b.total : b.total - a.total))
       .map((r) => `${r.name} ${num.format(r.total)}`)
       .join(', ')}.`,
@@ -118,14 +122,14 @@
       <span class="hint">{low ? 'Lower is better' : 'Higher is better'}</span>
     </div>
     <div class="chips">
-      {#each session.players as p, i (p.id)}
+      {#each players as p, i (p.seat)}
         <button
           type="button"
           class="chip"
           aria-pressed={focus === i}
           onclick={() => (focus = focus === i ? null : i)}
         >
-          <Avatar name={p.name} seat={i} emoji={p.emoji} size={22} />
+          <Avatar name={p.name} seat={p.seat} emoji={p.emoji} size={22} />
           {p.name}
         </button>
       {/each}
@@ -165,18 +169,18 @@
               class="line"
               class:faded={focus !== null}
               stroke={seatColor(p)}
-              points={s.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
+              points={pointsFor(s, p)}
             />
           {/if}
         {/each}
         {#if focus !== null}
-          <polyline class="line" stroke={seatColor(focus)} points={series[focus].map((v, i) => `${x(i)},${y(v)}`).join(' ')} />
+          <polyline class="line" stroke={seatColor(focus)} points={pointsFor(series[focus], focus)} />
         {/if}
 
         {#each series as s, p (p)}
           {#if focus === null || focus === p}
             <circle class="dot" cx={x(rounds)} cy={y(s[rounds])} r="4.5" fill={seatColor(p)} />
-            {#if active !== null}
+            {#if active !== null && active >= from(p)}
               <circle class="dot" cx={x(active)} cy={y(s[active])} r="4.5" fill={seatColor(p)} />
             {/if}
           {/if}
@@ -184,7 +188,7 @@
 
         {#each endLabels as l (l.p)}
           <text class="end" class:faded={focus !== null && focus !== l.p} x={x(rounds) + 9} y={l.labelY + 4}>
-            {shortName(session.players[l.p].name)}
+            {shortName(players[l.p].name)}
           </text>
         {/each}
       </svg>
@@ -200,7 +204,7 @@
           {#each tooltip as t (t.p)}
             <div class="tip-row">
               <span class="swatch" style:background={seatColor(t.p)}></span>
-              <span class="tip-name">{session.players[t.p].name}</span>
+              <span class="tip-name">{players[t.p].name}</span>
               <strong>{num.format(t.total)}</strong>
             </div>
           {/each}

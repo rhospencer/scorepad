@@ -1,11 +1,16 @@
 /** Shapes shared by the lobby server (server/) and the app. */
 
+import type { RaceData } from './race';
+export type { RaceData };
+
 export interface LobbyPlayer {
   id: string;
   name: string;
   emoji: string;
   /** The phone's lasting player id, so records follow them between games. Only the host sees it. */
   personId?: string;
+  /** Host only: no phone has this spot yet (a player QR nobody has scanned, or a restored lobby). */
+  waiting?: boolean;
 }
 
 export interface LobbyView {
@@ -122,6 +127,8 @@ export interface Scoreboard {
   rows: ScoreboardRow[];
   /** A moment from the latest round ("Ana takes the lead!"), or null. */
   callout?: Callout | null;
+  /** Running totals for the score race chart, once two rounds are scored. */
+  race?: RaceData | null;
 }
 
 /** A lead change or big climb, shown briefly on the host and on phones. */

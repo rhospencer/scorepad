@@ -2,6 +2,7 @@
   import { flip } from 'svelte/animate';
   import Avatar from './Avatar.svelte';
   import Confetti from './Confetti.svelte';
+  import RaceButton from './RaceButton.svelte';
   import type { Scoreboard } from '../lib/lobbyTypes';
   import { ordinal } from '../lib/scoreboard';
 
@@ -57,7 +58,10 @@
     </div>
   {/if}
 
-  <h2 class="section-label">Standings</h2>
+  <div class="sheet-head">
+    <h2 class="section-label">Standings</h2>
+    <RaceButton race={board.race} small />
+  </div>
   <ol class="rows">
     {#each board.rows as r (r.lobbyId ?? `seat-${r.seat}`)}
       <li class:me={r.lobbyId !== null && r.lobbyId === meId} animate:flip={{ duration: reduceMotion ? 0 : 350 }}>

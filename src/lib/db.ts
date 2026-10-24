@@ -104,6 +104,19 @@ export async function allPeople(): Promise<Person[]> {
   return db.people.toArray();
 }
 
+/**
+ * Forget a saved player, and anyone merged into them. Past games keep their scores;
+ * the name just stops being offered in setup.
+ */
+export async function deletePerson(id: string): Promise<string[]> {
+  return db.transaction('rw', db.people, async () => {
+    const all = await db.people.toArray();
+    const gone = all.filter((p) => p.id === id || p.mergedInto === id).map((p) => p.id);
+    await db.people.bulkDelete(gone);
+    return gone;
+  });
+}
+
 export async function savePeople(people: Person[]): Promise<void> {
   await db.people.bulkPut(JSON.parse(JSON.stringify(people)) as Person[]);
 }

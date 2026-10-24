@@ -58,14 +58,21 @@ describe('LobbyStore', () => {
     expect(errorOf(() => store.join(code, 'Ben', 'x')).status).toBe(400);
   });
 
-  it('stops joins when full or started, and for unknown codes', () => {
+  it('stops joins when full or cancelled, and for unknown codes', () => {
     const { store, code, hostKey } = setup(1);
     store.join(code, 'Ana', '🦊');
     expect(errorOf(() => store.join(code, 'Ben', '🐼')).message).toMatch(/full/);
-    store.setOpenSlots(code, hostKey, 3);
-    store.start(code, hostKey);
-    expect(errorOf(() => store.join(code, 'Ben', '🐼')).message).toMatch(/started/);
+    store.close(code, hostKey);
+    expect(errorOf(() => store.join(code, 'Ben', '🐼')).message).toMatch(/cancelled/);
     expect(errorOf(() => store.join('ZZZZ', 'Ben', '🐼')).status).toBe(404);
+  });
+
+  it('lets phones ask to join a game under way, past the open seats', () => {
+    const { store, code, hostKey } = setup(1);
+    store.join(code, 'Ana', '🦊');
+    store.start(code, hostKey);
+    const { player } = store.join(code, 'Maya', '🦩');
+    expect(store.view(code).players.map((p) => p.id)).toContain(player.id);
   });
 
   it('lets a player change their emoji or name with their token only', () => {
@@ -284,5 +291,68 @@ describe('LobbyStore', () => {
       const f = kombioRound(false);
       expect(errorOf(() => f.store.submit(f.code, f.a.player.id, f.a.token, { gameId: 'k', round: 0, value: -15 })).status).toBe(400);
     });
+  });
+});
+
+describe('bringing a lobby back after a restart', () => {
+  it('restores the same code, key and players, and leaves a live lobby alone', () => {
+    const store = new LobbyStore();
+    const hostKey = 'k'.repeat(24);
+    store.restore('abcd', hostKey, { gameName: 'Farkle', players: [{ id: 'ph0ne1', name: 'Ana', emoji: '🦊' }, { id: 'bad id!', name: 'X', emoji: '🐼' }] });
+    expect(store.view('ABCD')).toMatchObject({ code: 'ABCD', status: 'started', players: [{ id: 'ph0ne1', name: 'Ana', emoji: '🦊' }] });
+    expect(store.hostView('ABCD', hostKey).players[0].waiting).toBe(true);
+    store.restore('ABCD', hostKey, { players: [] }); // already here: no change
+    expect(store.view('ABCD').players).toHaveLength(1);
+    expect(errorOf(() => store.restore('ABCD', 'x'.repeat(24), {})).status).toBe(403);
+  });
+
+  it('lets a phone take its spot back with the secret it saved, and only that phone', () => {
+    const store = new LobbyStore();
+    const hostKey = 'k'.repeat(24);
+    store.restore('WXYZ', hostKey, { players: [{ id: 'ph0ne2', name: 'Ben', emoji: '🐼' }] });
+    const saved = 't'.repeat(24);
+    store.withdraw('WXYZ', 'ph0ne2', { token: saved }); // the phone's first request sets its secret
+    expect(store.hostView('WXYZ', hostKey).players[0].waiting).toBeUndefined();
+    expect(errorOf(() => store.withdraw('WXYZ', 'ph0ne2', { token: 'z'.repeat(24) })).status).toBe(404);
+  });
+});
+
+describe('a player’s own QR code', () => {
+  it('makes a spot with a one-time secret that a phone claims', () => {
+    const { store, code, hostKey } = setup(0);
+    store.start(code, hostKey);
+    const { player, claim } = store.seat(code, hostKey, { name: 'Ben', emoji: '🐻' });
+    expect(store.hostView(code, hostKey).players.find((p) => p.id === player.id)?.waiting).toBe(true);
+    const got = store.claimSeat(code, claim);
+    expect(got.player.id).toBe(player.id);
+    expect(store.hostView(code, hostKey).players.find((p) => p.id === player.id)?.waiting).toBeUndefined();
+    expect(errorOf(() => store.claimSeat(code, claim)).message).toMatch(/already used/);
+  });
+
+  it('moves a player to a new phone: the old phone’s secret stops working', () => {
+    const { store, code, hostKey } = setup();
+    const old = store.join(code, 'Ana', '🦊');
+    const { claim } = store.seat(code, hostKey, { id: old.player.id, name: 'Ana', emoji: '🦊' });
+    expect(store.view(code).players).toHaveLength(1);
+    const fresh = store.claimSeat(code, claim);
+    expect(fresh.token).not.toBe(old.token);
+    expect(errorOf(() => store.remove(code, old.player.id, { token: old.token })).status).toBe(404);
+  });
+
+  it('only the host can make one', () => {
+    const { store, code } = setup();
+    expect(errorOf(() => store.seat(code, 'nope', { name: 'Ben', emoji: '🐻' })).status).toBe(403);
+  });
+});
+
+describe('the score race on phones', () => {
+  it('passes the chart’s numbers through, and drops bad ones', () => {
+    const { store, code, hostKey } = setup();
+    const race = { low: true, players: [{ name: 'Ana', emoji: '🦊', seat: 0 }], series: [[0, 10, 'x']], from: [0] };
+    const board = { gameId: 'g', gameName: 'G', status: '', rule: '', finished: false, winners: [], rows: [], race };
+    store.publish(code, hostKey, { scoreboard: board });
+    expect(store.view(code).scoreboard?.race).toEqual({ ...race, series: [[0, 10, 0]] });
+    store.publish(code, hostKey, { scoreboard: { ...board, race: { players: [], series: [] } } });
+    expect(store.view(code).scoreboard?.race).toBeNull();
   });
 });

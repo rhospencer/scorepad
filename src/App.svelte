@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { getSessionGame } from './games';
   import { blankSpec, buildCustomGame, copySpec } from './lib/customGame';
   import {
     allPeople,
     customGames,
     deleteCustomGame,
+    deletePerson,
     deleteSession,
     finishedSessions,
     inProgressSessions,
@@ -13,8 +14,11 @@
     savePeople,
     saveSession,
   } from './lib/db';
+  import type { JoinRequest } from './components/AddPlayerSheet.svelte';
+  import { randomEmoji } from './lib/emoji';
+  import { addLatePlayer, linkPhone } from './lib/lateJoin';
   import { buildLiveRound } from './lib/liveRound';
-  import { lobbyApi, watchLobby } from './lib/lobbyClient';
+  import { isMissingLobby, lobbyApi, watchLobby } from './lib/lobbyClient';
   import type { LobbyView } from './lib/lobbyTypes';
   import { peopleAfterGame } from './lib/people';
   import { buildScoreboard } from './lib/scoreboard';
@@ -91,7 +95,10 @@
     if (key === lastPublished) return;
     lastPublished = key;
     // A lobby lost to a server restart just stops updating; scoring carries on.
-    lobbyApi.publish(s.lobby.code, s.lobby.hostKey, live).catch(() => (lastPublished = ''));
+    lobbyApi.publish(s.lobby.code, s.lobby.hostKey, live).catch((err) => {
+      lastPublished = '';
+      if (isMissingLobby(err)) reviveLobby();
+    });
   }
 
   // While a phone game is open, listen for the scores phones send.
@@ -101,12 +108,96 @@
   $effect(() => {
     if (!lobbyKey) return;
     const [code, hostKey] = lobbyKey.split(' ');
-    const stop = watchLobby(code, (v) => (hostLobby = v), undefined, hostKey);
+    const stop = watchLobby(code, (v) => (hostLobby = v), reviveLobby, hostKey);
+    // The server may have forgotten this lobby while the game was closed.
+    untrack(reviveLobby);
     return () => {
       stop();
       hostLobby = null;
     };
   });
+
+  let reviving = false;
+  /**
+   * The server keeps lobbies in memory, so a restart (or a long idle spell) forgets them.
+   * When the game's lobby is gone, bring it back with the same code and the phones already
+   * in the game, then resend the standings. Phones reconnect by themselves.
+   */
+  async function reviveLobby() {
+    const s = session;
+    const g = game;
+    if (!s?.lobby || !g || reviving) return;
+    reviving = true;
+    try {
+      await lobbyApi.view(s.lobby.code);
+    } catch (err) {
+      if (isMissingLobby(err)) {
+        const players = s.players.flatMap((p) =>
+          p.lobbyId && p.emoji ? [{ id: p.lobbyId, name: p.name, emoji: p.emoji, ...(p.personId ? { personId: p.personId } : {}) }] : [],
+        );
+        await lobbyApi.restore(s.lobby.code, s.lobby.hostKey, { gameName: g.name, status: 'started', players }).catch(() => {});
+        if (session) {
+          lastPublished = '';
+          publish(session);
+        }
+      }
+    } finally {
+      reviving = false;
+    }
+  }
+
+  /** Phones in the lobby that aren't in the game yet: asking to join, or rejoining from a new phone. */
+  const joinRequests = $derived.by((): JoinRequest[] => {
+    if (!session || session.finishedAt || !hostLobby || hostLobby.status !== 'started') return [];
+    const inGame = new Set(session.players.flatMap((p) => (p.lobbyId ? [p.lobbyId] : [])));
+    return hostLobby.players
+      .filter((p) => !inGame.has(p.id))
+      .map((p) => ({ lobbyId: p.id, name: p.name, emoji: p.emoji, ...(p.personId ? { personId: p.personId } : {}) }));
+  });
+
+  function addPlayerMidGame(player: { name: string; emoji?: string; lobbyId?: string; personId?: string }, start: number) {
+    if (!session || !game) return;
+    persist(addLatePlayer(game, session, player, start));
+  }
+
+  function linkPhoneMidGame(seat: number, request: JoinRequest) {
+    if (!session) return;
+    const lobby = session.lobby;
+    const old = session.players[seat]?.lobbyId;
+    persist(linkPhone(session, seat, request));
+    // Rejoining from a new phone: let the old connection go.
+    if (lobby && old && old !== request.lobbyId) lobbyApi.kick(lobby.code, lobby.hostKey, old).catch(() => {});
+  }
+
+  /**
+   * A one-time QR code for one player's own phone: a player the host typed in, or one moving
+   * to a new phone. The game links them to the phone spot now; the badge stays until a phone scans.
+   */
+  async function seatPhone(seat: number): Promise<{ code: string; claim: string } | null> {
+    const lobby = await openLobby();
+    const s = session;
+    const p = s?.players[seat];
+    if (!lobby || !s || !p) return null;
+    const emoji = p.emoji ?? randomEmoji(s.players.flatMap((x) => (x.emoji ? [x.emoji] : [])));
+    const { player, claim } = await lobbyApi.seat(lobby.code, lobby.hostKey, { id: p.lobbyId, name: p.name, emoji });
+    if (p.lobbyId !== player.id) persist(linkPhone(s, seat, { lobbyId: player.id, emoji: player.emoji }));
+    return { code: lobby.code, claim };
+  }
+
+  function declineJoin(lobbyId: string) {
+    const lobby = session?.lobby;
+    if (lobby) lobbyApi.kick(lobby.code, lobby.hostKey, lobbyId).catch(() => {});
+  }
+
+  /** The game's phone lobby. A game that started without phones gets one now, already under way. */
+  async function openLobby(): Promise<{ code: string; hostKey: string } | null> {
+    if (!session || !game) return null;
+    if (session.lobby) return session.lobby;
+    const created = await lobbyApi.create(game.name, Math.max(0, 20 - session.players.length));
+    await lobbyApi.start(created.code, created.hostKey);
+    if (session) persist({ ...session, lobby: created });
+    return created;
+  }
 
   function sendBackToPhone(lobbyId: string) {
     const link = session?.lobby;
@@ -129,6 +220,14 @@
     await savePeople(updates).catch(() => (saveFailed = true));
     const fresh = new Map(updates.map((p) => [p.id, p]));
     people = [...people.filter((p) => !fresh.has(p.id)), ...updates];
+  }
+
+  async function forgetPerson(id: string) {
+    const gone = await deletePerson(id).catch(() => {
+      saveFailed = true;
+      return [] as string[];
+    });
+    people = people.filter((p) => !gone.includes(p.id));
   }
 
   async function setMerge(id: string, into: string | undefined) {
@@ -232,6 +331,7 @@
     game={g}
     initialPlayers={previous?.players.map((p) => ({ name: p.name, emoji: p.emoji, personId: p.personId }))}
     {people}
+    onforget={forgetPerson}
     initialOptions={previous?.options}
     onstart={(players, options, lobby) => start(g, players, options, lobby)}
     onback={goLibrary}
@@ -245,6 +345,13 @@
     onresults={() => (screen = { name: 'results' })}
     submissions={hostLobby?.submissions}
     onsendback={sendBackToPhone}
+    requests={joinRequests}
+    onaddplayer={addPlayerMidGame}
+    onlinkphone={linkPhoneMidGame}
+    ondecline={declineJoin}
+    onopenlobby={openLobby}
+    lobbyPlayers={hostLobby?.players ?? null}
+    onseatphone={seatPhone}
   />
 {:else if session && game && screen.name === 'results'}
   <Results

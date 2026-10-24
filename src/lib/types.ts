@@ -177,6 +177,11 @@ export interface Player {
   lobbyId?: string;
   /** Who this is across games (a saved player or a phone's own id). Records follow it, not the name. */
   personId?: string;
+  /**
+   * Joined mid-game: the first round they played (0-based). Earlier rounds score 0,
+   * except the round just before, which holds their starting score.
+   */
+  joinedRound?: number;
 }
 
 /**

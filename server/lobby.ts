@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isAvatarEmoji } from '../src/lib/emoji';
 import type {
   Callout,
+  RaceData,
   LiveRound,
   LiveTrickRound,
   LiveRoundPlayer,
@@ -33,6 +34,8 @@ interface Lobby extends Omit<LobbyView, 'submitted' | 'submissions'> {
   tokens: Map<string, string>;
   /** Player id → the score their phone sent for the current round. */
   submissions: Map<string, Submission>;
+  /** One-time QR secrets the host made for a player's phone → that player's id. */
+  claims: Map<string, string>;
   /** `host` listeners also get the submitted scores. */
   listeners: Set<{ fn: (view: LobbyView) => void; host: boolean }>;
   touchedAt: number;
@@ -68,6 +71,7 @@ export class LobbyStore {
       scoreboard: null,
       round: null,
       submissions: new Map(),
+      claims: new Map(),
       hostKey,
       tokens: new Map(),
       listeners: new Set(),
@@ -76,14 +80,97 @@ export class LobbyStore {
     return { code, hostKey };
   }
 
+  /**
+   * Bring back a lobby the server forgot (it restarted, or the lobby sat idle), with the
+   * same code, host key and players, so the host's code and the phones' links work again.
+   * Phones' secrets are gone with it: each phone's next request sets its secret again.
+   * Does nothing if the lobby is still here (with the right host key).
+   */
+  restore(code: string, hostKey: unknown, data: { gameName?: unknown; players?: unknown; status?: unknown }): void {
+    const key = String(code).toUpperCase();
+    if (!/^[A-Z]{4}$/.test(key) || typeof hostKey !== 'string' || hostKey.length < 16) {
+      throw new LobbyError(400, 'Bad lobby.');
+    }
+    const existing = this.lobbies.get(key);
+    if (existing) {
+      this.checkHost(existing, hostKey);
+      return;
+    }
+    const raw = Array.isArray(data.players) ? data.players.slice(0, 20) : [];
+    const players: LobbyPlayer[] = raw.flatMap((p: Record<string, unknown>) => {
+      if (typeof p?.id !== 'string' || !/^[\w-]{4,40}$/.test(p.id) || !isAvatarEmoji(p.emoji)) return [];
+      const player: LobbyPlayer = { id: p.id, name: String(p.name ?? '').trim().slice(0, 20) || 'Player', emoji: p.emoji };
+      if (typeof p.personId === 'string' && /^[\w-]{8,64}$/.test(p.personId)) player.personId = p.personId;
+      return [player];
+    });
+    this.lobbies.set(key, {
+      code: key,
+      gameName: String(data.gameName ?? '').slice(0, 40),
+      openSlots: 0,
+      status: data.status === 'open' ? 'open' : 'started',
+      players,
+      scoreboard: null,
+      round: null,
+      submissions: new Map(),
+      claims: new Map(),
+      hostKey,
+      tokens: new Map(),
+      listeners: new Set(),
+      touchedAt: this.now(),
+    });
+  }
+
+  /**
+   * The host makes a phone spot for a player in the game (one they typed in, or one moving to
+   * a new phone) and gets a one-time secret for that player's own QR code. Passing the id of
+   * a player already here reuses them; each call makes a fresh secret.
+   */
+  seat(code: string, hostKey: unknown, data: { id?: unknown; name?: unknown; emoji?: unknown }): { player: LobbyPlayer; claim: string } {
+    const lobby = this.get(code);
+    this.checkHost(lobby, hostKey);
+    let player = typeof data.id === 'string' ? lobby.players.find((p) => p.id === data.id) : undefined;
+    if (!player) {
+      if (lobby.players.length >= 20) throw new LobbyError(409, 'This game is full.');
+      const name = String(data.name ?? '').trim().slice(0, 20) || 'Player';
+      player = { id: this.secret(8), name, emoji: checkEmoji(data.emoji) };
+      lobby.players.push(player);
+    }
+    const claim = this.secret();
+    lobby.claims.set(claim, player.id);
+    this.changed(lobby);
+    return { player, claim };
+  }
+
+  /**
+   * A phone scanned a player's QR code: it becomes that player, with a new secret of its own
+   * (any phone they had before is let go). Each code works once.
+   */
+  claimSeat(code: string, claim: unknown): { player: LobbyPlayer; token: string } {
+    const lobby = this.get(code);
+    const id = typeof claim === 'string' ? lobby.claims.get(claim) : undefined;
+    const player = id ? lobby.players.find((p) => p.id === id) : undefined;
+    if (!player || typeof claim !== 'string') {
+      throw new LobbyError(404, 'That QR code was already used. Ask the host to show it again.');
+    }
+    lobby.claims.delete(claim);
+    const token = this.secret();
+    lobby.tokens.set(player.id, token);
+    lobby.submissions.delete(player.id);
+    this.changed(lobby);
+    return { player, token };
+  }
+
   view(code: string): LobbyView {
     return toView(this.get(code), false);
   }
 
   join(code: string, name: unknown, emoji: unknown, personId?: unknown): { player: LobbyPlayer; token: string } {
     const lobby = this.get(code);
-    if (lobby.status !== 'open') throw new LobbyError(409, 'This game has already started.');
-    if (lobby.players.length >= lobby.openSlots) throw new LobbyError(409, 'This game is full.');
+    if (lobby.status === 'closed') throw new LobbyError(409, 'The host cancelled this game.');
+    // Before the start, seats are what the host left open. Once it's under way, joining
+    // is a request the host approves, so only the overall cap applies.
+    const full = lobby.status === 'open' ? lobby.players.length >= lobby.openSlots : lobby.players.length >= 20;
+    if (full) throw new LobbyError(409, 'This game is full.');
     const player: LobbyPlayer = { id: this.secret(8), name: this.checkName(lobby, name), emoji: checkEmoji(emoji) };
     if (typeof personId === 'string' && /^[\w-]{8,64}$/.test(personId)) player.personId = personId;
     const token = this.secret();
@@ -250,6 +337,8 @@ export class LobbyStore {
 
   private playerFor(lobby: Lobby, id: string, token: unknown): LobbyPlayer {
     const player = lobby.players.find((p) => p.id === id);
+    // A restored lobby doesn't know phones' secrets: the phone's own saved one is taken on first use.
+    if (player && !lobby.tokens.has(id) && typeof token === 'string' && token.length >= 16) lobby.tokens.set(id, token);
     if (!player || lobby.tokens.get(id) !== token) throw new LobbyError(404, 'You’re not in this game.');
     return player;
   }
@@ -298,7 +387,9 @@ function toView(lobby: Lobby, host: boolean): LobbyView {
     openSlots: lobby.openSlots,
     status: lobby.status,
     // Phones see each other's names and emoji, never their lasting ids.
-    players: lobby.players.map(({ personId, ...p }) => (host && personId ? { ...p, personId } : p)),
+    players: lobby.players.map(({ personId, ...p }) =>
+      host ? { ...p, ...(personId ? { personId } : {}), ...(lobby.tokens.has(p.id) ? {} : { waiting: true }) } : p,
+    ),
     scoreboard: lobby.scoreboard,
     round: lobby.round,
     submitted: [...lobby.submissions.keys()],
@@ -378,7 +469,24 @@ function cleanScoreboard(raw: unknown): Scoreboard {
       last: r.last === null || r.last === undefined ? null : num(r.last),
     })),
     callout: cleanCallout(b.callout),
+    race: cleanRace(b.race),
   };
+}
+
+/** The score race chart's numbers: at most 20 players and 100 rounds. */
+function cleanRace(raw: unknown): RaceData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const list = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []);
+  const players = list(r.players, 20).map((p: Record<string, unknown>) => ({
+    name: String(p?.name ?? '').slice(0, 20),
+    ...(isAvatarEmoji(p?.emoji) ? { emoji: p.emoji as string } : {}),
+    seat: num(p?.seat),
+  }));
+  const series = list(r.series, players.length).map((s) => list(s, 101).map(num));
+  if (players.length === 0 || series.length !== players.length) return null;
+  return { low: r.low === true, players, series, from: list(r.from, players.length).map(num) };
 }
 
 function cleanCallout(raw: unknown): Callout | null {

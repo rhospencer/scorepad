@@ -1,4 +1,6 @@
 import { roundCallout } from './callout';
+import { raceData } from './race';
+import { missedRound } from './lateJoin';
 import { finalRound, sitsOut } from './scoring';
 import { gameOver, sessionWinners, standings } from './session';
 import type { Scoreboard } from './lobbyTypes';
@@ -45,6 +47,7 @@ export function buildScoreboard(game: GameModule, session: Session): Scoreboard 
     finished,
     winners: finished ? sessionWinners(game, session).map((i) => session.players[i].name) : [],
     callout: roundCallout(game, session),
+    race: scored >= 2 ? raceData(game, session) : null,
     rows: standings(game, session).map((s) => ({
       lobbyId: s.player.lobbyId ?? null,
       name: s.player.name,
@@ -53,7 +56,10 @@ export function buildScoreboard(game: GameModule, session: Session): Scoreboard 
       total: s.total,
       rank: s.rank,
       behind: s.behind,
-      last: scored === 0 || sitsOut(game, session.scores, lastRound, s.index) ? null : session.scores[lastRound][s.index],
+      last:
+        scored === 0 || sitsOut(game, session.scores, lastRound, s.index) || missedRound(s.player, lastRound)
+          ? null
+          : session.scores[lastRound][s.index],
     })),
   };
 }

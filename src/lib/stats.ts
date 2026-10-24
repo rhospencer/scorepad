@@ -1,3 +1,4 @@
+import { missedRound } from './lateJoin';
 import { sitsOut } from './scoring';
 import { standings } from './session';
 import type { GameModule, Session } from './types';
@@ -21,7 +22,8 @@ export function gameStats(game: GameModule, session: Session): GameStat[] {
 
   // Turns that actually happened (final-turn rounds leave some players out).
   const turns = scores.flatMap((round, r) =>
-    round.flatMap((value, p) => (sitsOut(game, scores, r, p) ? [] : [{ r, p, value }])),
+    // Late joiners' missed rounds (and their starting score) aren't turns they played.
+    round.flatMap((value, p) => (sitsOut(game, scores, r, p) || missedRound(players[p], r) ? [] : [{ r, p, value }])),
   );
 
   if (rules?.out) {

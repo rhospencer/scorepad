@@ -13,6 +13,9 @@ import { LobbyError, LobbyStore } from './lobby';
  *   GET    /api/lobbies/:code                   lobby snapshot
  *   GET    /api/lobbies/:code/events            live snapshots (Server-Sent Events)
  *   PATCH  /api/lobbies/:code                   host: {hostKey, openSlots?, scoreboard?, status?: 'started' | 'closed'}
+ *   PUT    /api/lobbies/:code                   host brings back a forgotten lobby {hostKey, gameName, players, status}
+ *   POST   /api/lobbies/:code/seats             host makes a player's own QR {hostKey, id?, name, emoji} → {player, claim}
+ *   POST   /api/lobbies/:code/claim             phone scanned a player's QR {claim} → {player, token}
  *   POST   /api/lobbies/:code/players           phone joins  {name, emoji, personId?} → {player, token}
  *   PATCH  /api/lobbies/:code/players/:id       phone edits  {token, name?, emoji?}
  *   DELETE /api/lobbies/:code/players/:id       phone leaves {token} or host removes {hostKey}
@@ -75,9 +78,23 @@ async function route(store: LobbyStore, req: IncomingMessage, res: ServerRespons
       if (body.status === 'closed') store.close(code, body.hostKey);
       return send(res, 200, store.view(code));
     }
+    if (method === 'PUT') {
+      const body = await readJson(req);
+      store.restore(code, body.hostKey, { gameName: body.gameName, players: body.players, status: body.status });
+      return send(res, 200, store.view(code));
+    }
   }
 
   if (sub === 'events' && method === 'GET') return stream(store, code, req, res, hostKeyFrom(req));
+
+  if (sub === 'seats' && !id && method === 'POST') {
+    const body = await readJson(req);
+    return send(res, 201, store.seat(code, body.hostKey, { id: body.id, name: body.name, emoji: body.emoji }));
+  }
+  if (sub === 'claim' && !id && method === 'POST') {
+    const body = await readJson(req);
+    return send(res, 200, store.claimSeat(code, body.claim));
+  }
 
   if (sub === 'players') {
     if (!id && method === 'POST') {

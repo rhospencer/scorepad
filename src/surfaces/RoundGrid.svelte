@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
@@ -37,9 +38,15 @@
     submissions?: Record<string, Submission>;
     /** Tell the player's phone its score was sent back. */
     onsendback?: (lobbyId: string) => void;
+    /** Extra buttons for the top bar (add a player, join QR). */
+    tools?: Snippet;
+    /** Show the QR code that lets this player (typed in by the host) score from their own phone. */
+    onphoneplayer?: (seat: number) => void;
+    /** Seats that can show a phone QR: typed-in players, and phones nobody has picked up yet. */
+    phoneSeats?: boolean[];
   }
 
-  let { game, session, onchange, onexit, onresults, submissions, onsendback }: Props = $props();
+  let { game, session, onchange, onexit, onresults, submissions, onsendback, tools, onphoneplayer, phoneSeats = [] }: Props = $props();
 
   // A finished game opens on the sheet, since there's no round left to enter.
   let tab = $state<'round' | 'sheet'>(initialTab());
@@ -244,7 +251,15 @@
         {@const sub = pending[i]}
         {@const wasSentBack = !sub && draft.entries[i] === null && !!draft.sentBack?.includes(i)}
         <li class:is-out={isOut} class:skipped={skip[i]} class:pending={!!sub} class:sent-back={wasSentBack}>
-          <Avatar name={p.name} seat={i} emoji={p.emoji} />
+          {#if onphoneplayer && phoneSeats[i]}
+            <!-- Typed-in players: tap to show their own QR code and score from their phone. -->
+            <button type="button" class="avatar-link" title="Score from their phone" aria-label="Let {p.name} score from their phone" onclick={() => onphoneplayer(i)}>
+              <Avatar name={p.name} seat={i} emoji={p.emoji} />
+              <span class="phone-badge" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M11 18h2" /></svg></span>
+            </button>
+          {:else}
+            <Avatar name={p.name} seat={i} emoji={p.emoji} />
+          {/if}
           <label class="who" for="score-{i}">
             <span class="name">{p.name}</span>
             <span class="meta">
@@ -337,9 +352,10 @@
     {:else}
       <div class="tabs" role="tablist" aria-label="View">
         <button type="button" role="tab" aria-selected={tab === 'round'} onclick={() => (tab = 'round')}>Round</button>
-        <button type="button" role="tab" aria-selected={tab === 'sheet'} onclick={() => (tab = 'sheet')}>Score sheet</button>
+        <button type="button" role="tab" aria-selected={tab === 'sheet'} onclick={() => (tab = 'sheet')}>Sheet</button>
       </div>
     {/if}
+    {@render tools?.()}
     <ThemePicker />
   </div>
 

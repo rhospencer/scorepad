@@ -13,9 +13,23 @@
     /** Desktop: a big QR code readable across the table, with who has joined. */
     large?: boolean;
     joinedPlayers?: { name: string; emoji?: string; seat: number }[];
+    /** The close button's words ("Stop inviting" in setup, "Done" during a game). */
+    closeLabel?: string;
+    /** Replaces the "Waiting for players" line, e.g. for one player's own QR code. */
+    status?: string;
   }
 
-  let { code, url, joined, openSlots, onclose, large = false, joinedPlayers = [] }: Props = $props();
+  let {
+    code,
+    url,
+    joined,
+    openSlots,
+    onclose,
+    large = false,
+    joinedPlayers = [],
+    closeLabel = 'Stop inviting',
+    status,
+  }: Props = $props();
 
   let qr = $state('');
   let copied = $state(false);
@@ -80,10 +94,10 @@
   {/if}
   <div class="foot">
     <span role="status">
-      {copied ? 'Link copied' : joined === 0 ? 'Waiting for players…' : `${joined} joined by phone`}
-      {#if openSlots === 0 && !copied}· full{/if}
+      {copied ? 'Link copied' : (status ?? (joined === 0 ? 'Waiting for players…' : `${joined} joined by phone`))}
+      {#if openSlots === 0 && !copied && !status}· full{/if}
     </span>
-    <button type="button" class="close" onclick={onclose}>Stop inviting</button>
+    <button type="button" class="close" onclick={onclose}>{closeLabel}</button>
   </div>
 </section>
 

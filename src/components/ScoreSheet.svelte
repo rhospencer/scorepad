@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte';
+  import { missedRound } from '../lib/lateJoin';
   import { sitsOut, totals } from '../lib/scoring';
   import { sessionWinners } from '../lib/session';
   import type { GameModule, Session } from '../lib/types';
@@ -53,7 +54,14 @@
           {#each session.players as p, i (p.id)}
             {@const out = scored && session.outs[r] === i}
             <td class:out>
-              {#if scored && sitsOut(game, session.scores, r, i)}
+              {#if scored && missedRound(p, r)}
+                {#if r === (p.joinedRound ?? 0) - 1 && session.scores[r][i] !== 0}
+                  <!-- Their starting score, set by the host when they joined. -->
+                  <small class="late">{session.scores[r][i] > 0 ? '+' : ''}{num.format(session.scores[r][i])} late</small>
+                {:else}
+                  <span aria-hidden="true">–</span><span class="visually-hidden">not playing yet</span>
+                {/if}
+              {:else if scored && sitsOut(game, session.scores, r, i)}
                 <span aria-hidden="true">–</span><span class="visually-hidden">no turn</span>
               {:else if scored}
                 {@const t = session.tricks?.[r]?.[i]}
@@ -91,6 +99,11 @@
 <style>
   .neg {
     color: var(--coral);
+  }
+  .late {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--coral-text);
   }
   .bt {
     display: block;
