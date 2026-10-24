@@ -5,6 +5,7 @@
   import InvitePanel from '../components/InvitePanel.svelte';
   import RaceButton from '../components/RaceButton.svelte';
   import { raceData } from '../lib/race';
+  import { viewport } from '../lib/viewport.svelte';
   import BidTricks from '../surfaces/BidTricks.svelte';
   import RoundGrid from '../surfaces/RoundGrid.svelte';
   import { roundCallout } from '../lib/callout';
@@ -186,7 +187,8 @@
       </div>
     {/if}
   </div>
-  <RaceButton race={raceData(game, session)} />
+  <!-- Desktop: the chart opens from here. Phone-size screens show it under the score sheet. -->
+  {#if viewport.wide}<RaceButton race={raceData(game, session)} />{/if}
 {/snippet}
 
 {#if menuOpen}

@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Avatar from '../components/Avatar.svelte';
+  import ScoreRace from '../components/ScoreRace.svelte';
   import ScoreSheet from '../components/ScoreSheet.svelte';
+  import { raceData } from '../lib/race';
   import ThemePicker from '../components/ThemePicker.svelte';
   import type { Submission } from '../lib/lobbyTypes';
   import { isFinished, totals } from '../lib/scoring';
@@ -343,6 +345,7 @@
     <p class="eyebrow">{game.name}</p>
     <h1 class="title">Score sheet</h1>
     <ScoreSheet {game} {session} onpickround={editRound} />
+    <ScoreRace race={raceData(game, session)} />
   {:else}
     {@render entry()}
   {/if}

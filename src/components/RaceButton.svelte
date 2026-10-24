@@ -5,11 +5,9 @@
 
   interface Props {
     race: RaceData | null | undefined;
-    /** A smaller button, beside a section heading (phones' standings). */
-    small?: boolean;
   }
 
-  let { race, small = false }: Props = $props();
+  let { race }: Props = $props();
 
   let open = $state(false);
   let dialog = $state<HTMLDialogElement>();
@@ -23,7 +21,7 @@
 </script>
 
 {#if race && rounds >= 2}
-  <button type="button" class="icon-btn" class:small aria-label="Score race chart" title="Score race" onclick={() => (open = true)}>
+  <button type="button" class="icon-btn" aria-label="Score race chart" title="Score race" onclick={() => (open = true)}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></svg>
   </button>
 
@@ -47,11 +45,6 @@
 {/if}
 
 <style>
-  .small {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-  }
   dialog {
     width: min(760px, calc(100vw - 24px));
     max-height: calc(100dvh - 24px);

@@ -3,7 +3,9 @@
   import Avatar from '../components/Avatar.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ThemePicker from '../components/ThemePicker.svelte';
+  import ScoreRace from '../components/ScoreRace.svelte';
   import ScoreSheet from '../components/ScoreSheet.svelte';
+  import { raceData } from '../lib/race';
   import { outConflict, pendingSubmissions } from '../lib/liveRound';
   import type { Submission } from '../lib/lobbyTypes';
   import { finalRound, totals } from '../lib/scoring';
@@ -384,6 +386,7 @@
     <p class="eyebrow">{game.name}</p>
     <h1 class="title">Score sheet</h1>
     <ScoreSheet {game} {session} onpickround={editRound} />
+    <ScoreRace race={raceData(game, session)} />
   {:else}
     {@render entry()}
   {/if}
