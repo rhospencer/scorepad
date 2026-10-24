@@ -201,6 +201,7 @@
     ondelete={remove}
     oncreate={() => (screen = { name: 'builder', spec: blankSpec(), existing: false })}
     onedit={(g) => g.custom && (screen = { name: 'builder', spec: g.custom, existing: true })}
+    onremovegame={(g) => removeBuilt(g.id)}
     onplayers={showPlayers}
     onrestored={() => refreshLists().catch(() => (saveFailed = true))}
   />

@@ -23,6 +23,8 @@
     ondelete: (session: Session) => void;
     oncreate: () => void;
     onedit: (game: GameModule) => void;
+    /** Remove a game built in the app. Games already played with it keep their scores. */
+    onremovegame: (game: GameModule) => void;
     onplayers: () => void;
     /** A backup was restored; reload the lists. */
     onrestored: () => void;
@@ -39,6 +41,7 @@
     ondelete,
     oncreate,
     onedit,
+    onremovegame,
     onplayers,
     onrestored,
   }: Props = $props();
@@ -77,6 +80,9 @@
     if (viewport.wide) selectedId = game.id;
     else onpick(game);
   }
+
+  /** The custom game waiting on the remove confirmation, if any. */
+  let removing = $state<GameModule | null>(null);
 
   /** The game waiting on the delete confirmation, if any. */
   let deleting = $state<Session | null>(null);
@@ -128,6 +134,17 @@
         <h1 class="title">{viewport.wide ? 'Games' : 'Pick a game'}</h1>
       {/if}
 
+      <!-- Always in view, above the lists that scroll. -->
+      <button type="button" class="card create" onclick={oncreate}>
+        <span class="plus" aria-hidden="true">+</span>
+        <span class="card-text">
+          <strong>Create a game</strong>
+          <span class="meta">Your own rules and score sheet</span>
+        </span>
+      </button>
+
+      <!-- Desktop: the game lists scroll on their own so the library fits the window. -->
+      <div class="game-lists">
       <ul class="list">
         {#each games as game (game.id)}
           <li>
@@ -150,6 +167,7 @@
         {/each}
       </ul>
 
+      {#if customGames.length > 0}
       <h2 class="section-label">Your games</h2>
       <ul class="list">
         {#each customGames as game (game.id)}
@@ -169,18 +187,12 @@
             <button type="button" class="icon-btn" aria-label="Edit {game.name}" onclick={() => onedit(game)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></svg>
             </button>
+            <button type="button" class="icon-btn" aria-label="Remove {game.name}" onclick={() => (removing = game)}>×</button>
           </li>
         {/each}
-        <li>
-          <button type="button" class="card create" onclick={oncreate}>
-            <span class="plus" aria-hidden="true">+</span>
-            <span class="card-text">
-              <strong>Create a game</strong>
-              <span class="meta">Your own rules and score sheet</span>
-            </span>
-          </button>
-        </li>
       </ul>
+      {/if}
+      </div>
 
       {#if recent.length > 0}
         <h2 class="section-label">Players</h2>
@@ -248,6 +260,23 @@
   oncancel={() => (deleting = null)}
 />
 
+<ConfirmDialog
+  open={removing !== null}
+  title={removing ? `Remove ${removing.name}?` : ''}
+  message="It comes off your games list. Games you already played with it keep their scores."
+  confirmLabel="Remove game"
+  cancelLabel="Keep it"
+  danger
+  onconfirm={() => {
+    if (removing) {
+      if (selectedId === removing.id) selectedId = null;
+      onremovegame(removing);
+    }
+    removing = null;
+  }}
+  oncancel={() => (removing = null)}
+/>
+
 <style>
   .brand {
     display: flex;
@@ -283,11 +312,26 @@
   .split .side {
     position: sticky;
     top: 0;
-    min-height: calc(100dvh - 28px);
-    max-height: 100dvh;
+    height: calc(100dvh - 28px);
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     padding-right: 32px;
     border-right: 1px solid color-mix(in srgb, var(--line-strong) 55%, var(--line));
+  }
+  /* Everything keeps its size except the game lists, which fill the rest and scroll. */
+  .split .side > :global(*) {
+    flex: none;
+  }
+  .split .game-lists {
+    flex: 1 1 0;
+    min-height: 220px;
+    overflow-y: auto;
+    /* Room so focus rings and borders aren't clipped, with the scrollbar beside the cards. */
+    margin: 0 -10px;
+    padding: 2px 10px;
+    border-block: 1px solid var(--line);
+    padding-block: 10px;
   }
   .empty {
     min-height: 60dvh;
@@ -352,6 +396,7 @@
     box-shadow: 0 0 0 2px var(--surface);
   }
   .card.create {
+    margin-bottom: 12px;
     border-style: dashed;
     color: var(--amber);
   }
